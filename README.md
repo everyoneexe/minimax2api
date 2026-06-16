@@ -1,79 +1,81 @@
-# MiniMax2API - Production-Grade OpenAI-Compatible Proxy
+# MiniMax2API - 生产级 OpenAI 兼容代理
 
-High-performance, production-ready OpenAI-compatible API proxy for MiniMax AI with advanced session management and intelligent credit handling.
+[English](README.en.md) | 简体中文
 
-## ⚠️ Legal Disclaimer
+高性能、生产就绪的 MiniMax AI OpenAI 兼容 API 代理，支持高级会话管理和智能积分处理。
 
-**This project is a REVERSE-ENGINEERED web interface proxy, NOT an official API client.**
+## ⚠️ 法律声明
 
-- This tool automates interactions with the MiniMax web UI (agent.minimax.io) through browser automation
-- It does NOT use any official API keys or endpoints
-- Educational and research purposes only - use at your own risk
-- May violate MiniMax Terms of Service - no warranty or liability provided
-- Not affiliated with, endorsed by, or supported by MiniMax AI
-- Users are responsible for compliance with MiniMax's terms and applicable laws
+**本项目是逆向工程的 Web 界面代理，并非官方 API 客户端。**
 
-**If you need official API access, contact MiniMax directly for their commercial API offerings.**
+- 本工具通过浏览器自动化与 MiniMax Web UI (agent.minimax.io) 交互
+- 不使用任何官方 API 密钥或端点
+- 仅供教育和研究目的 - 风险自负
+- 可能违反 MiniMax 服务条款 - 不提供任何保证或责任
+- 与 MiniMax AI 无关联、未获授权或支持
+- 用户自行负责遵守 MiniMax 条款和适用法律
 
-## 🎯 Features
+**如需官方 API 访问，请直接联系 MiniMax 获取其商业 API 服务。**
 
-### Core Capabilities
-- ✅ **OpenAI-Compatible API** - Drop-in replacement for OpenAI API
-- ✅ **Multi-Account Load Balancing** - Distribute requests across multiple accounts
-- ✅ **Dual Mode Operation** - Pool mode (high-throughput) or Lazy mode (on-demand)
-- ✅ **Tool/Function Calling** - Full support for OpenAI function calling
-- ✅ **Streaming & Non-Streaming** - Both response modes supported
+## 🎯 特性
 
-### Advanced Session Management
-- ✅ **Pool Mode** - Pre-authenticated session pool with 25-minute TTL auto-refresh
-- ✅ **Lazy Mode** - On-demand browser automation with persistent tab pooling
-- ✅ **Round-Robin Load Balancing** - Fair distribution across accounts and tabs
-- ✅ **Configurable Concurrency** - Scale browsers and tabs per workload
+### 核心功能
+- ✅ **OpenAI 兼容 API** - OpenAI API 的直接替代品
+- ✅ **多账户负载均衡** - 跨多个账户分发请求
+- ✅ **双模式运行** - Pool 模式（高吞吐）或 Lazy 模式（按需）
+- ✅ **工具/函数调用** - 完整支持 OpenAI 函数调用
+- ✅ **流式与非流式** - 支持两种响应模式
 
-### Production-Grade Error Handling
-- ✅ **24-Hour Auto-Recovery** - Temporary credit exhaustion with automatic retry
-- ✅ **Permanent Depletion Tracking** - Flag and skip quota-exceeded accounts
-- ✅ **Cooldown Management** - Expired cooldowns automatically rejoin pool
-- ✅ **Graceful Degradation** - Transient errors handled without request failures
+### 高级会话管理
+- ✅ **Pool 模式** - 预认证会话池，25 分钟 TTL 自动刷新
+- ✅ **Lazy 模式** - 按需浏览器自动化，持久化标签池
+- ✅ **轮询负载均衡** - 跨账户和标签页公平分配
+- ✅ **可配置并发** - 根据工作负载扩展浏览器和标签页
 
-### High-Throughput Design
-- ✅ **Massive Concurrency** - 5 accounts × 5 tabs = 25+ simultaneous requests
-- ✅ **Fair Distribution** - Each account maintains equal share of pool
-- ✅ **Dynamic Scaling** - Add/remove accounts without restart
-- ✅ **Real-Time Monitoring** - Health and status endpoints
+### 生产级错误处理
+- ✅ **24 小时自动恢复** - 临时积分耗尽自动重试
+- ✅ **永久耗尽跟踪** - 标记并跳过配额超限账户
+- ✅ **冷却管理** - 过期冷却自动重新加入池
+- ✅ **优雅降级** - 瞬态错误处理，无请求失败
+
+### 高吞吐设计
+- ✅ **大规模并发** - 5 账户 × 5 标签页 = 25+ 并发请求
+- ✅ **公平分配** - 每个账户保持相等的池份额
+- ✅ **动态扩展** - 无需重启添加/删除账户
+- ✅ **实时监控** - 健康和状态端点
 
 ---
 
-## 📦 Installation
+## 📦 安装
 
-### Prerequisites
+### 前置要求
 - **Python 3.10+**
 - **Node.js 18+**
-- **Chromium/Chrome** (for browser automation)
+- **Chromium/Chrome**（用于浏览器自动化）
 
-### Quick Setup
+### 快速设置
 
 ```bash
-# Clone repository
+# 克隆仓库
 git clone <repo-url>
 cd minimax2api
 
-# Install Python dependencies
+# 安装 Python 依赖
 pip install -r requirements.txt
 
-# Install Node.js dependencies
+# 安装 Node.js 依赖
 cd generator
 npm install
 cd ..
 
-# Configure
+# 配置
 cp config.example.json config.json
-# Edit config.json with your MiniMax accounts
+# 编辑 config.json 填入你的 MiniMax 账户
 ```
 
 ---
 
-## ⚙️ Configuration
+## ⚙️ 配置
 
 ### config.json
 
@@ -105,104 +107,104 @@ cp config.example.json config.json
 }
 ```
 
-### Configuration Fields
+### 配置字段
 
-| Field | Description |
-|-------|-------------|
-| `proxy_api_keys` | API keys for Bearer authentication |
-| `default_model` | Default model when not specified in request |
-| `available_models` | List of supported MiniMax models |
-| `lazy_session` | `false` = Pool mode, `true` = Lazy mode |
-| `accounts` | Array of MiniMax account credentials |
+| 字段 | 描述 |
+|------|------|
+| `proxy_api_keys` | Bearer 认证的 API 密钥 |
+| `default_model` | 请求中未指定时的默认模型 |
+| `available_models` | 支持的 MiniMax 模型列表 |
+| `lazy_session` | `false` = Pool 模式，`true` = Lazy 模式 |
+| `accounts` | MiniMax 账户凭据数组 |
 
-### Account Auto-Managed Fields
+### 账户自动管理字段
 
-These fields are automatically set by the system:
+系统自动设置这些字段：
 
-| Field | Description |
-|-------|-------------|
-| `depleted` | Permanently depleted quota (QUOTA_EXCEEDED) |
-| `temporarily_no_credits` | Temporary credit exhaustion (NO_CREDITS) |
-| `credits_check_after` | Timestamp when to retry after cooldown |
+| 字段 | 描述 |
+|------|------|
+| `depleted` | 永久配额耗尽（QUOTA_EXCEEDED）|
+| `temporarily_no_credits` | 临时积分耗尽（NO_CREDITS）|
+| `credits_check_after` | 冷却后重试的时间戳 |
 
 ---
 
-## 🚀 Usage
+## 🚀 使用方法
 
-### Mode 1: Pool Mode (Recommended for Production)
+### 模式 1: Pool 模式（生产推荐）
 
-**Best for:** High-throughput, consistent latency, production deployments
+**适用场景：** 高吞吐、一致延迟、生产部署
 
-**Step 1: Start Session Daemon**
+**步骤 1: 启动会话守护进程**
 
 ```bash
 cd generator
 POOL_SIZE=20 MAX_ACCOUNTS=5 node session_daemon.js
 ```
 
-**Environment variables:**
-- `POOL_SIZE` - Target total sessions (default: 15)
-- `MAX_ACCOUNTS` - Max accounts to use, 0=unlimited (default: 0)
-- `HEADLESS` - Headless mode, false for debugging (default: true)
+**环境变量：**
+- `POOL_SIZE` - 目标总会话数（默认：15）
+- `MAX_ACCOUNTS` - 最大账户数，0=无限制（默认：0）
+- `HEADLESS` - 无头模式，false 用于调试（默认：true）
 
-**Step 2: Start API Server**
+**步骤 2: 启动 API 服务器**
 
 ```bash
 python main.py
 ```
 
-**What happens:**
-- Session daemon creates pool in `pool_sessions.json`
-- Fair distribution: each account maintains equal share
-- Auto-refresh before 25-minute expiry
-- 24h cooldown for credit exhaustion
-- Watches config for new accounts (60s interval)
+**发生了什么：**
+- 会话守护进程在 `pool_sessions.json` 中创建池
+- 公平分配：每个账户保持相等份额
+- 25 分钟到期前自动刷新
+- 积分耗尽 24 小时冷却
+- 监视配置以添加新账户（60 秒间隔）
 
 ---
 
-### Mode 2: Lazy Mode (On-Demand)
+### 模式 2: Lazy 模式（按需）
 
-**Best for:** Development, variable load, memory constraints
+**适用场景：** 开发、可变负载、内存受限
 
-**Step 1: Enable Lazy Mode**
+**步骤 1: 启用 Lazy 模式**
 
-Edit `config.json`:
+编辑 `config.json`：
 ```json
 {
   "lazy_session": true
 }
 ```
 
-**Step 2: Start Lazy Server**
+**步骤 2: 启动 Lazy 服务器**
 
 ```bash
 cd generator
 MAX_BROWSERS=5 TABS_PER_BROWSER=5 node lazy_server.js
 ```
 
-**Environment variables:**
-- `LAZY_PORT` - Server port (default: 5005)
-- `MAX_BROWSERS` - Max browser instances, 0=unlimited (default: 0)
-- `TABS_PER_BROWSER` - Tabs per browser (default: 5)
+**环境变量：**
+- `LAZY_PORT` - 服务器端口（默认：5005）
+- `MAX_BROWSERS` - 最大浏览器实例数，0=无限制（默认：0）
+- `TABS_PER_BROWSER` - 每个浏览器的标签页数（默认：5）
 
-**Step 3: Start API Server**
+**步骤 3: 启动 API 服务器**
 
 ```bash
 python main.py
 ```
 
-**What happens:**
-- Browsers launch with persistent login state
-- Tab pool created per browser
-- Round-robin allocation across all tabs
-- Temporary/permanent credit exhaustion handled
-- New accounts auto-added from config (30s interval)
+**发生了什么：**
+- 浏览器启动并保持登录状态
+- 每个浏览器创建标签页池
+- 所有标签页轮询分配
+- 处理临时/永久积分耗尽
+- 从配置自动添加新账户（30 秒间隔）
 
 ---
 
-## 📡 API Usage
+## 📡 API 使用
 
-### Endpoint
+### 端点
 
 ```
 POST http://localhost:8000/v1/chat/completions
@@ -210,47 +212,47 @@ Authorization: Bearer sk-your-secret-key
 Content-Type: application/json
 ```
 
-### Basic Request
+### 基本请求
 
 ```json
 {
   "model": "MiniMax-M2.7",
   "messages": [
-    {"role": "user", "content": "Hello, how are you?"}
+    {"role": "user", "content": "你好，最近怎么样？"}
   ]
 }
 ```
 
-### Streaming
+### 流式响应
 
 ```json
 {
   "model": "MiniMax-M2.7",
   "messages": [
-    {"role": "user", "content": "Tell me a story"}
+    {"role": "user", "content": "给我讲个故事"}
   ],
   "stream": true
 }
 ```
 
-### Tool Calling
+### 工具调用
 
 ```json
 {
   "model": "MiniMax-M2.7",
   "messages": [
-    {"role": "user", "content": "What's the weather in Tokyo?"}
+    {"role": "user", "content": "东京的天气怎么样？"}
   ],
   "tools": [
     {
       "type": "function",
       "function": {
         "name": "get_weather",
-        "description": "Get current weather for a location",
+        "description": "获取指定位置的当前天气",
         "parameters": {
           "type": "object",
           "properties": {
-            "location": {"type": "string", "description": "City name"}
+            "location": {"type": "string", "description": "城市名称"}
           },
           "required": ["location"]
         }
@@ -260,90 +262,90 @@ Content-Type: application/json
 }
 ```
 
-### Status Endpoints
+### 状态端点
 
 ```bash
-# API health
+# API 健康检查
 curl http://localhost:8000/api/status
 
-# Account status
+# 账户状态
 curl http://localhost:8000/api/accounts
 
-# Session pool status (Pool mode)
+# 会话池状态（Pool 模式）
 curl http://localhost:8000/api/pool/status
 
-# Lazy server status (Lazy mode)
+# Lazy 服务器状态（Lazy 模式）
 curl http://localhost:5005/status
 ```
 
 ---
 
-## 🎛️ Performance Tuning
+## 🎛️ 性能调优
 
-### High-Throughput Setup (25+ Concurrent Requests)
+### 高吞吐设置（25+ 并发请求）
 
-**Pool Mode:**
+**Pool 模式：**
 ```bash
 POOL_SIZE=30 MAX_ACCOUNTS=5 node session_daemon.js
-# 5 accounts × 6 sessions = 30 pool sessions
-# Handles 25+ concurrent with headroom
+# 5 账户 × 6 会话 = 30 池会话
+# 处理 25+ 并发有余量
 ```
 
-**Lazy Mode:**
+**Lazy 模式：**
 ```bash
 MAX_BROWSERS=5 TABS_PER_BROWSER=5 node lazy_server.js
-# 5 browsers × 5 tabs = 25 concurrent slots
+# 5 浏览器 × 5 标签页 = 25 并发槽位
 ```
 
-### Memory Usage
+### 内存使用
 
-**Pool Mode (Lightweight):**
-- Session pool: ~1MB RAM per account
-- No persistent browsers
-- Best for memory-constrained environments
+**Pool 模式（轻量级）：**
+- 会话池：每账户约 1MB RAM
+- 无持久化浏览器
+- 适合内存受限环境
 
-**Lazy Mode (Browser-based):**
-- Per browser: ~200-300MB
-- Per tab: ~50-100MB
-- Example: 5 browsers × 5 tabs ≈ 2-3GB total
+**Lazy 模式（基于浏览器）：**
+- 每浏览器：约 200-300MB
+- 每标签页：约 50-100MB
+- 示例：5 浏览器 × 5 标签页 ≈ 2-3GB 总计
 
-### Credit Exhaustion Handling
+### 积分耗尽处理
 
-**Temporary (24h Cooldown):**
-- Trigger: Browser shows "not enough Credits"
-- Action: Account marked `temporarily_no_credits`
-- Recovery: Auto-retries after 24 hours
-- Use case: Daily credit limits
+**临时（24 小时冷却）：**
+- 触发：浏览器显示"积分不足"
+- 操作：账户标记 `temporarily_no_credits`
+- 恢复：24 小时后自动重试
+- 用例：每日积分限制
 
-**Permanent Depletion:**
-- Trigger: API returns quota exceeded
-- Action: Account marked `depleted`, `is_active: false`
-- Recovery: Never (manual intervention required)
-- Use case: Trial accounts expired
+**永久耗尽：**
+- 触发：API 返回配额超限
+- 操作：账户标记 `depleted`，`is_active: false`
+- 恢复：永不（需手动干预）
+- 用例：试用账户过期
 
 ---
 
-## 🛠️ Monitoring
+## 🛠️ 监控
 
-### Session Pool Health
+### 会话池健康检查
 
 ```bash
-# View pool file
+# 查看池文件
 cat pool_sessions.json
 
-# Count valid sessions
+# 统计有效会话
 jq '.sessions | length' pool_sessions.json
 
-# Check expiry times
+# 检查过期时间
 jq '.sessions[].expires_at' pool_sessions.json
 ```
 
-### Lazy Server Health
+### Lazy 服务器健康检查
 
 ```bash
 curl http://localhost:5005/status
 
-# Output:
+# 输出：
 {
   "tabs_available": 20,
   "tabs_total": 25,
@@ -352,12 +354,12 @@ curl http://localhost:5005/status
 }
 ```
 
-### Account Status
+### 账户状态
 
 ```bash
 curl http://localhost:8000/api/accounts
 
-# Shows per-account:
+# 显示每个账户：
 # - is_active
 # - depleted
 # - temporarily_no_credits
@@ -367,125 +369,125 @@ curl http://localhost:8000/api/accounts
 
 ---
 
-## 🐛 Troubleshooting
+## 🐛 故障排除
 
-### Pool Mode: No sessions created
+### Pool 模式：未创建会话
 
-**Check daemon logs:**
+**检查守护进程日志：**
 ```bash
 cd generator
 node session_daemon.js
 ```
 
-**Common issues:**
-- ❌ Wrong credentials → Verify `config.json`
-- ❌ Browser crashes → Check RAM/disk space
-- ❌ Timeout → Network slow or rate limited
+**常见问题：**
+- ❌ 凭据错误 → 验证 `config.json`
+- ❌ 浏览器崩溃 → 检查 RAM/磁盘空间
+- ❌ 超时 → 网络慢或速率限制
 
-### Lazy Mode: Tabs not initializing
+### Lazy 模式：标签页未初始化
 
-**Check lazy server logs:**
+**检查 lazy 服务器日志：**
 ```bash
 cd generator
-HEADLESS=false node lazy_server.js  # Visual debugging
+HEADLESS=false node lazy_server.js  # 可视化调试
 ```
 
-**Common issues:**
-- ❌ Browser won't start → Install Chromium/Chrome
-- ❌ Login fails → Verify credentials
-- ❌ Port conflict → Change `LAZY_PORT`
+**常见问题：**
+- ❌ 浏览器无法启动 → 安装 Chromium/Chrome
+- ❌ 登录失败 → 验证凭据
+- ❌ 端口冲突 → 更改 `LAZY_PORT`
 
-### API: "No available accounts"
+### API："无可用账户"
 
-**Check account status:**
+**检查账户状态：**
 ```bash
 curl http://localhost:8000/api/accounts | jq
 ```
 
-**Possible causes:**
-- All accounts `depleted: true` → Add new accounts
-- All in cooldown → Wait 24h or add accounts
-- Pool empty → Restart session daemon
+**可能原因：**
+- 所有账户 `depleted: true` → 添加新账户
+- 全部在冷却中 → 等待 24 小时或添加账户
+- 池为空 → 重启会话守护进程
 
-### High Error Rate
+### 高错误率
 
-**Check API logs:**
+**检查 API 日志：**
 ```bash
 python main.py 2>&1 | tee api.log
 grep ERROR api.log
 ```
 
-**Error patterns:**
-- `TRANSIENT_ERROR` → Network issue, auto-retries
-- `NO_CREDITS` → 24h cooldown active
-- `QUOTA_EXCEEDED` → Permanent depletion
-- `lazy_server error` → Lazy server down/overloaded
+**错误模式：**
+- `TRANSIENT_ERROR` → 网络问题，自动重试
+- `NO_CREDITS` → 24 小时冷却活跃
+- `QUOTA_EXCEEDED` → 永久耗尽
+- `lazy_server error` → Lazy 服务器宕机/过载
 
 ---
 
-## 📊 Architecture
+## 📊 架构
 
 ```
 ┌──────────────┐
-│   Client     │
+│   客户端     │
 │  (OpenAI)    │
 └──────┬───────┘
        │ HTTP
        ▼
 ┌─────────────────────────────────┐
-│   API Server (main.py)          │
-│   - Authentication              │
-│   - Request routing             │
-│   - OpenAI format handling      │
+│   API 服务器 (main.py)          │
+│   - 身份验证                    │
+│   - 请求路由                    │
+│   - OpenAI 格式处理             │
 └──────┬──────────────────────────┘
        │
        ▼
 ┌─────────────────────────────────┐
-│   Proxy Layer (proxy.py)        │
-│   - Account selection           │
-│   - Load balancing              │
-│   - Error handling              │
-│   - Cooldown management         │
+│   代理层 (proxy.py)             │
+│   - 账户选择                    │
+│   - 负载均衡                    │
+│   - 错误处理                    │
+│   - 冷却管理                    │
 └──────┬──────────────────────────┘
        │
        ▼
 ┌─────────────────────────────────┐
-│   Adapter (minimax_adapter/)    │
-│   - Protocol translation        │
-│   - Tool call conversion        │
-│   - Session management          │
+│   适配器 (minimax_adapter/)     │
+│   - 协议转换                    │
+│   - 工具调用转换                │
+│   - 会话管理                    │
 └──────┬──────────────────────────┘
        │
        ├──────────────┬────────────┐
        ▼              ▼            ▼
 ┌────────────┐  ┌──────────┐  ┌─────────┐
-│ Session    │  │  Lazy    │  │ MiniMax │
-│ Pool       │  │  Server  │  │   API   │
-│ (daemon.js)│  │ (tabs)   │  │         │
+│ 会话池     │  │  Lazy    │  │ MiniMax │
+│           │  │  服务器  │  │   API   │
+│(daemon.js)│  │ (标签页) │  │         │
 └────────────┘  └──────────┘  └─────────┘
 ```
 
 ---
 
-## 🔒 Security
+## 🔒 安全
 
-- ⚠️ **Never commit config.json** - Contains plaintext passwords
-- 🔑 **Rotate API keys** - Change `proxy_api_keys` regularly
-- 🔐 **Use HTTPS in production** - Deploy behind reverse proxy (nginx/Caddy)
-- 🚦 **Add rate limiting** - Consider rate limits for public endpoints
-
----
-
-## 🤝 Contributing
-
-Contributions welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Test both Pool and Lazy modes
-4. Submit a pull request
+- ⚠️ **切勿提交 config.json** - 包含明文密码
+- 🔑 **定期轮换 API 密钥** - 定期更改 `proxy_api_keys`
+- 🔐 **生产环境使用 HTTPS** - 部署在反向代理后（nginx/Caddy）
+- 🚦 **添加速率限制** - 考虑对公共端点进行速率限制
 
 ---
 
-## 📝 License
+## 🤝 贡献
+
+欢迎贡献！请：
+1. Fork 仓库
+2. 创建功能分支
+3. 测试 Pool 和 Lazy 模式
+4. 提交 Pull Request
+
+---
+
+## 📝 许可证
 
 MIT
