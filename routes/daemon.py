@@ -322,4 +322,8 @@ async def add_to_daemon(req: AddToDaemonRequest):
         )
         log_f.close()
 
-    return JSONResponse({"added": added, "total": len(cfg_accounts)})
+    return JSONResponse({
+        "added": added,
+        "reactivated": reactivated,
+        "total": len(added) + len(reactivated)
+    })
