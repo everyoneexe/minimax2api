@@ -2,15 +2,12 @@
   "proxy_api_keys": [
     "sk-minimax-your-secret-key"
   ],
-  "default_model": "MiniMax-M2.7",
+  "default_model": "MiniMax-M3",
   "available_models": [
+    "MiniMax-M3",
+    "MiniMax-M3-thinking",
     "MiniMax-M2.7",
-    "MiniMax-M2.7-highspeed",
-    "MiniMax-M2.5",
-    "MiniMax-M2.5-highspeed",
-    "MiniMax-M2.1",
-    "MiniMax-M2.1-highspeed",
-    "MiniMax-M2"
+    "MiniMax-M2.7-highspeed"
   ],
   "webui_password": "minimax",
   "accounts": [
