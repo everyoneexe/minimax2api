@@ -43,5 +43,8 @@ daemon.log
 .DS_Store
 Thumbs.db
 
+# Factory/Omozon sessions
+.omc/
+
 # Unused development files (contains old credentials)
 generator/unused/
