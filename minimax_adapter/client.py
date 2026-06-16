@@ -193,7 +193,17 @@ async def web_agent_chat(
 
         final_content = result.get("content", "")
         final_thinking = result.get("thinking", "")
-        lazy_usage = result.get("usage") or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        lazy_usage = result.get("usage")
+
+        # If no usage data from MiniMax, estimate based on content length
+        if not lazy_usage or lazy_usage.get("total_tokens", 0) == 0:
+            prompt_est = len(content) // 4
+            completion_est = len(final_content + final_thinking) // 4
+            lazy_usage = {
+                "prompt_tokens": prompt_est,
+                "completion_tokens": completion_est,
+                "total_tokens": prompt_est + completion_est
+            }
 
         # Resolve asset URLs (only if we have credentials)
         if "commit-id-" in final_content and jwt_token:
@@ -291,13 +301,23 @@ async def web_agent_chat(
             choice["message"]["tool_calls"] = tool_calls
             choice["finish_reason"] = "tool_calls"
 
+    # If no usage data from MiniMax, estimate based on content length
+    if not usage_data or usage_data.get("total_tokens", 0) == 0:
+        prompt_est = len(content) // 4
+        completion_est = len(final_content + final_thinking) // 4
+        usage_data = {
+            "prompt_tokens": prompt_est,
+            "completion_tokens": completion_est,
+            "total_tokens": prompt_est + completion_est
+        }
+
     return {
         "id": f"chatcmpl-{session_id}",
         "object": "chat.completion",
         "created": unix_timestamp(),
         "model": model,
         "choices": [choice],
-        "usage": usage_data or {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+        "usage": usage_data,
     }
 
 
