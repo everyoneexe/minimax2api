@@ -94,7 +94,7 @@ class UsageStats:
 @dataclass
 class Config:
     proxy_api_keys: List[str] = field(default_factory=lambda: ["sk-default"])
-    default_model: str = "MiniMax-M2.7"
+    default_model: str = "MiniMax-M3"
     available_models: List[str] = field(default_factory=lambda: DEFAULT_MODELS.copy())
     webui_password: str = "minimax"
     accounts: List[dict] = field(default_factory=list)
@@ -182,7 +182,7 @@ class ConfigManager:
 
             self.config = Config(
                 proxy_api_keys=data.get("proxy_api_keys", ["sk-default"]),
-                default_model=data.get("default_model", "MiniMax-M2.7"),
+                default_model=data.get("default_model", "MiniMax-M3"),
                 available_models=data.get("available_models", DEFAULT_MODELS.copy()),
                 webui_password=data.get("webui_password", "minimax"),
                 accounts=accounts,

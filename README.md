@@ -67,11 +67,12 @@ cp config.example.json config.json
 ```json
 {
   "proxy_api_keys": ["sk-your-secret-key"],
-  "default_model": "MiniMax-M2.7",
+  "default_model": "MiniMax-M3",
   "available_models": [
+    "MiniMax-M3",
+    "MiniMax-M3-thinking",
     "MiniMax-M2.7",
-    "MiniMax-M2.7-highspeed",
-    "MiniMax-M2.5"
+    "MiniMax-M2.7-highspeed"
   ],
   "lazy_session": false,
   "accounts": [
@@ -436,7 +437,7 @@ grep ERROR api.log
        │
        ▼
 ┌─────────────────────────────────┐
-│   Adapter (minimax_adapter.py)  │
+│   Adapter (minimax_adapter/)    │
 │   - Protocol translation        │
 │   - Tool call conversion        │
 │   - Session management          │
