@@ -1,0 +1,82 @@
+[
+  {
+    "severity": "CRITICAL",
+    "file": "generator/lazy_server.js",
+    "line": 500,
+    "summary": "ReferenceError: RESPONSE_INTERCEPTOR undefined",
+    "failure_scenario": "switchAccountInTab() crashes with 'RESPONSE_INTERCEPTOR is not defined', breaking zero-memory-spike tab reuse feature. Should be INTERCEPTOR_SCRIPT (defined at line 127).",
+    "impact": "Tab switching feature completely broken, forces browser restart on account exhaustion"
+  },
+  {
+    "severity": "CRITICAL",
+    "file": "generator/session_daemon.js",
+    "line": 124,
+    "summary": "Time unit mismatch: stores milliseconds, Python expects seconds",
+    "failure_scenario": "Sets credits_check_after = Date.now() + 24h_in_ms (milliseconds), but Python proxy.py:84 compares with time.time() (seconds). Account locked out for 1000x longer: ~3 years instead of 24 hours.",
+    "impact": "Pool mode accounts become unusable for years after first credit exhaustion"
+  },
+  {
+    "severity": "HIGH",
+    "file": "generator/lazy_server.js",
+    "line": 865,
+    "summary": "Race condition: openedEmails tracking non-atomic",
+    "failure_scenario": "Concurrent switches do separate delete() and add() operations without lock. Two requests can both see account X available, both switch to it, violating single-session-per-account constraint.",
+    "impact": "Multiple browsers logged into same account trigger security alerts, account bans"
+  },
+  {
+    "severity": "HIGH",
+    "file": "generator/lazy_server.js",
+    "line": 844,
+    "summary": "Duplicate account switching logic (NO_CREDITS vs QUOTA_EXCEEDED)",
+    "failure_scenario": "50+ line blocks at 844-900 and 902-940 are nearly identical. Changes to switching logic must be duplicated, increasing bug surface area.",
+    "impact": "Maintenance burden, high risk of inconsistent behavior between error paths"
+  },
+  {
+    "severity": "MEDIUM",
+    "file": "proxy.py",
+    "line": 129,
+    "summary": "Write amplification: full config write on every request",
+    "failure_scenario": "_mark_used() → _persist_account() → config_manager.update_account() writes entire config.json to disk on every API call. At 10 req/s with 2 accounts, that's 864,000 disk writes per day.",
+    "impact": "SSD wear, I/O contention, config corruption risk under concurrent writes"
+  },
+  {
+    "severity": "MEDIUM",
+    "file": "generator/session_daemon.js",
+    "line": 348,
+    "summary": "Redundant config reloads in tight loop",
+    "failure_scenario": "loadConfig() called inside runAccount loop (every 60s per account) and getAvailableAccounts (multiple times per cycle). Reads full config.json from disk repeatedly instead of watching for changes.",
+    "impact": "Unnecessary I/O, stale config reads if external changes occur mid-cycle"
+  },
+  {
+    "severity": "MEDIUM",
+    "file": "generator/lazy_server.js",
+    "line": 978,
+    "summary": "Code duplication: getAvailableAccounts() duplicated across files",
+    "failure_scenario": "getAvailableAccounts() defined in both lazy_server.js:978 and session_daemon.js:411 with nearly identical logic. Bug fixes must be applied twice.",
+    "impact": "Maintenance burden, risk of logic divergence between pool and lazy modes"
+  },
+  {
+    "severity": "LOW",
+    "file": "proxy.py",
+    "line": 114,
+    "summary": "Dead variable: fresh_acct assigned but never used",
+    "failure_scenario": "fresh_acct = None assigned at line 114 but never read. Dead code that adds no value.",
+    "impact": "Code clarity, minor memory waste"
+  },
+  {
+    "severity": "LOW",
+    "file": "config.py",
+    "line": 53,
+    "summary": "Unused field: Account.current_concurrent not persisted or used",
+    "failure_scenario": "Account dataclass has current_concurrent field but it's excluded from to_dict() (line 70 comment). Runtime tracking uses separate _account_concurrent dict in proxy.py instead.",
+    "impact": "Dead field creates confusion about concurrency tracking design"
+  },
+  {
+    "severity": "INFO",
+    "file": "generator/session_daemon.js",
+    "line": 413,
+    "summary": "Time unit inconsistency between lazy and pool modes",
+    "failure_scenario": "Pool mode (session_daemon.js:413) uses Date.now() (milliseconds) for comparison, lazy mode (lazy_server.js:981) uses Math.floor(Date.now()/1000) (seconds). Both work internally but create confusion.",
+    "impact": "Code maintainability, future refactoring complexity"
+  }
+]

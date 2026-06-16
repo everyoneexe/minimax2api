@@ -1,0 +1,33 @@
+{
+  "proxy_api_keys": [
+    "sk-minimax-your-secret-key"
+  ],
+  "default_model": "MiniMax-M2.7",
+  "available_models": [
+    "MiniMax-M2.7",
+    "MiniMax-M2.7-highspeed",
+    "MiniMax-M2.5",
+    "MiniMax-M2.5-highspeed",
+    "MiniMax-M2.1",
+    "MiniMax-M2.1-highspeed",
+    "MiniMax-M2"
+  ],
+  "webui_password": "minimax",
+  "accounts": [
+    {
+      "email": "account1@example.com",
+      "password": "your_password_here",
+      "name": "account-1",
+      "is_active": true
+    },
+    {
+      "email": "account2@example.com",
+      "password": "your_password_here",
+      "name": "account-2",
+      "is_active": true
+    }
+  ],
+  "register_proxy": "",
+  "lazy_session": false,
+  "account_pool_target": 0
+}
