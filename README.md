@@ -74,7 +74,7 @@ cp config.example.json config.json
     "MiniMax-M2.7",
     "MiniMax-M2.7-highspeed"
   ],
-  "lazy_session": false,
+  "lazy_session": true,
   "accounts": [
     {
       "email": "account1@example.com",

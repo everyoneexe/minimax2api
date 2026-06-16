@@ -49,7 +49,7 @@ class Account:
     depleted: bool = False  # True = credit exhausted permanently, never auto-recover
     temporarily_no_credits: bool = False  # True = temporarily out of credits, retry after credits_check_after
     credits_check_after: float = 0.0  # Timestamp when to retry temporary credit exhaustion (24h cooldown)
-    max_concurrent: int = 5  # Max concurrent requests this account can handle (default 5)
+    max_concurrent: int = 5  # Max concurrent requests per account (5 req/account)
     # Note: Runtime concurrency tracking is handled by _account_concurrent dict in proxy.py, not persisted here
 
     def to_dict(self) -> dict:
@@ -99,9 +99,9 @@ class Config:
     webui_password: str = "minimax"
     accounts: List[dict] = field(default_factory=list)
     register_proxy: str = ""
-    lazy_session: bool = False
+    lazy_session: bool = True  # Lazy mode enabled by default (browser-based sessions)
     account_pool_target: int = 0  # 0 = disabled, >0 = auto-replenish when active accounts drop below this
-    max_concurrent_requests: int = 25  # Global max concurrent requests (distributed across accounts)
+    max_concurrent_requests: int = 100  # Global max: 20 accounts × 5 concurrent = 100 max capacity
 
     def to_dict(self) -> dict:
         return {
@@ -187,9 +187,9 @@ class ConfigManager:
                 webui_password=data.get("webui_password", "minimax"),
                 accounts=accounts,
                 register_proxy=data.get("register_proxy", ""),
-                lazy_session=data.get("lazy_session", False),
+                lazy_session=data.get("lazy_session", True),
                 account_pool_target=data.get("account_pool_target", 0),
-                max_concurrent_requests=data.get("max_concurrent_requests", 25),
+                max_concurrent_requests=data.get("max_concurrent_requests", 100),
             )
         except Exception as exc:
             print(f"[Config] load error: {exc}")
