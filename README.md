@@ -2,6 +2,19 @@
 
 High-performance, production-ready OpenAI-compatible API proxy for MiniMax AI with advanced session management and intelligent credit handling.
 
+## ⚠️ Legal Disclaimer
+
+**This project is a REVERSE-ENGINEERED web interface proxy, NOT an official API client.**
+
+- This tool automates interactions with the MiniMax web UI (agent.minimax.io) through browser automation
+- It does NOT use any official API keys or endpoints
+- Educational and research purposes only - use at your own risk
+- May violate MiniMax Terms of Service - no warranty or liability provided
+- Not affiliated with, endorsed by, or supported by MiniMax AI
+- Users are responsible for compliance with MiniMax's terms and applicable laws
+
+**If you need official API access, contact MiniMax directly for their commercial API offerings.**
+
 ## 🎯 Features
 
 ### Core Capabilities
