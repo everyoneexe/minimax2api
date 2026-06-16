@@ -247,10 +247,28 @@ async def add_to_daemon(req: AddToDaemonRequest):
     existing_names = {a.name for a in cfg_accounts}
     existing_emails = {a.email for a in cfg_accounts}
     added = []
+    reactivated = []
+
     for acc in found:
         email = acc["email"]
         name = email.split("@")[0]
-        if email not in existing_emails and name not in existing_names:
+
+        # Check if account already exists
+        existing_acc = next((a for a in cfg_accounts if a.email == email), None)
+
+        if existing_acc:
+            # Account exists - check if it's disabled/depleted
+            if not existing_acc.is_active or existing_acc.depleted or existing_acc.temporarily_no_credits:
+                # Reactivate the account with fresh credentials
+                existing_acc.password = acc["password"]
+                existing_acc.is_active = True
+                existing_acc.depleted = False
+                existing_acc.temporarily_no_credits = False
+                existing_acc.credits_check_after = 0.0
+                reactivated.append(email)
+            # If active and not depleted, skip (already good)
+        elif name not in existing_names:
+            # New account - add it
             cfg_accounts.append(_Account(
                 name=name,
                 email=email,
