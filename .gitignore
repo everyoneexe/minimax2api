@@ -1,0 +1,47 @@
+# Environment
+.env
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+venv/
+env/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Config & Data
+config.json
+pool_sessions.json
+accounts.json
+*.har
+
+# Logs
+*.log
+daemon.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Unused development files (contains old credentials)
+generator/unused/
