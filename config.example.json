@@ -25,6 +25,7 @@
     }
   ],
   "register_proxy": "",
-  "lazy_session": false,
-  "account_pool_target": 0
+  "lazy_session": true,
+  "account_pool_target": 0,
+  "max_concurrent_requests": 100
 }
