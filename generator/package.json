@@ -1,0 +1,15 @@
+{
+  "name": "minimax-generator",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "register": "node register.js",
+    "har": "node har_capture.js"
+  },
+  "dependencies": {
+    "jsdom": "^29.1.1",
+    "node-forge": "^1.3.1",
+    "playwright": "^1.60.0",
+    "puppeteer": "22.15.0"
+  }
+}
