@@ -1,14 +1,49 @@
 # Production Deployment Guide
 
-## 🚀 Quick Start Checklist
+## 🚀 Quick Start - Choose Your Deployment Method
 
-### Prerequisites
+### 🐳 Docker Deployment (Recommended for Production)
+
+**Fastest way to get started - all dependencies included!**
+
+```bash
+# 1. Prepare configuration
+cp config.example.json config.json
+# Edit config.json with your MiniMax accounts
+
+# 2. Start services (choose one)
+# Lazy mode (memory optimized, 3 browsers)
+docker-compose --profile lazy up -d
+
+# Pool mode (high throughput)
+docker-compose --profile pool up -d
+
+# 3. Verify
+curl http://localhost:8000/health
+```
+
+**Benefits:**
+- ✅ One-command deployment
+- ✅ All dependencies bundled (Python + Node.js + Chrome)
+- ✅ Cross-platform (Linux/Mac/Windows)
+- ✅ Automatic restart on failure
+- ✅ Memory optimized (3 browsers default)
+
+**Jump to:** [Docker Deployment Details](#-docker-deployment-guide)
+
+---
+
+### 💻 Manual Installation
+
+**For development or custom setups**
+
+#### Prerequisites
 - [ ] Python 3.10+ installed
 - [ ] Node.js 18+ installed
 - [ ] Chromium/Chrome browser
 - [ ] At least 2 MiniMax accounts with credentials
 
-### Initial Setup
+#### Initial Setup
 
 ```bash
 # 1. Clone and install dependencies
@@ -25,7 +60,353 @@ cp config.example.json config.json
 
 ---
 
-## 🎯 Production Deployment - Pool Mode (Recommended)
+## 🐳 Docker Deployment Guide
+
+### Architecture Overview
+
+Docker deployment uses 3 services:
+- **api**: FastAPI server (always running)
+- **lazy-server**: Browser automation (optional, profile: `lazy`)
+- **session-daemon**: Session pool manager (optional, profile: `pool`)
+
+### Step 1: Prepare Configuration
+
+```bash
+cd minimax2api
+cp config.example.json config.json
+```
+
+Edit `config.json`:
+```json
+{
+  "proxy_api_keys": ["sk-your-secret-key"],
+  "default_model": "MiniMax-M3",
+  "lazy_session": true,
+  "max_concurrent_requests": 100,
+  "accounts": [
+    {"email": "acc1@example.com", "password": "pass1", "name": "acc-1", "is_active": true},
+    {"email": "acc2@example.com", "password": "pass2", "name": "acc-2", "is_active": true}
+  ]
+}
+```
+
+### Step 2: Choose Deployment Mode
+
+#### Option A: Lazy Mode (Recommended)
+
+**Best for:** Memory optimization, development, variable load
+
+```bash
+# Start API + Lazy server
+docker-compose --profile lazy up -d
+
+# Verify services
+docker-compose ps
+
+# Expected output:
+# NAME                  STATUS          PORTS
+# minimax2api           Up 10 seconds   0.0.0.0:8000->8000/tcp
+# minimax2api-lazy      Up 10 seconds   0.0.0.0:5005->5005/tcp
+```
+
+**Configuration:**
+- `MAX_BROWSERS=3` (default, ~600MB RAM)
+- `TABS_PER_BROWSER=5` (15 concurrent slots total)
+
+#### Option B: Pool Mode
+
+**Best for:** High throughput, consistent latency
+
+```bash
+# Start API + Session daemon
+docker-compose --profile pool up -d
+
+# Verify services
+docker-compose ps
+
+# Expected output:
+# NAME                  STATUS          PORTS
+# minimax2api           Up 10 seconds   0.0.0.0:8000->8000/tcp
+# minimax2api-daemon    Up 10 seconds   -
+```
+
+**Configuration:**
+- `POOL_SIZE=20` (20 pre-authenticated sessions)
+- `MAX_ACCOUNTS=5` (use first 5 accounts from config)
+
+#### Option C: Both Modes
+
+```bash
+docker-compose --profile lazy --profile pool up -d
+```
+
+### Step 3: Verify Deployment
+
+```bash
+# Health check
+curl http://localhost:8000/health
+
+# Expected:
+# {"status":"ok","version":"1.4.0","service":"minimax2api"}
+
+# Test API
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Authorization: Bearer sk-your-secret-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"MiniMax-M3","messages":[{"role":"user","content":"你好"}]}'
+```
+
+### Step 4: Monitor Services
+
+```bash
+# View all logs
+docker-compose logs -f
+
+# View specific service
+docker-compose logs -f api
+docker-compose logs -f lazy-server
+docker-compose logs -f session-daemon
+
+# Check resource usage
+docker stats minimax2api minimax2api-lazy
+```
+
+### Docker Environment Variables
+
+Override in `docker-compose.yml` or via `-e`:
+
+| Variable | Service | Default | Description |
+|----------|---------|---------|-------------|
+| `PORT` | api | 8000 | API server port |
+| `LAZY_PORT` | lazy-server | 5005 | Lazy server port |
+| `MAX_BROWSERS` | lazy-server | 3 | Maximum browser instances |
+| `TABS_PER_BROWSER` | lazy-server | 5 | Tabs per browser |
+| `POOL_SIZE` | session-daemon | 20 | Session pool target size |
+| `MAX_ACCOUNTS` | session-daemon | 5 | Max accounts to use |
+| `HEADLESS` | session-daemon | true | Headless browser mode |
+
+**Example override:**
+```bash
+# Increase browsers to 5
+MAX_BROWSERS=5 docker-compose --profile lazy up -d
+
+# Or edit docker-compose.yml:
+environment:
+  - MAX_BROWSERS=5
+```
+
+### Production Configuration
+
+#### docker-compose.override.yml (Optional)
+
+Create for production overrides:
+
+```yaml
+version: '3.8'
+
+services:
+  api:
+    restart: always
+    environment:
+      - PORT=8000
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+
+  lazy-server:
+    restart: always
+    environment:
+      - MAX_BROWSERS=5
+      - TABS_PER_BROWSER=5
+    shm_size: '4gb'
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 6G
+```
+
+Apply:
+```bash
+docker-compose --profile lazy up -d
+# Automatically merges docker-compose.override.yml
+```
+
+### Maintenance Commands
+
+```bash
+# Restart services
+docker-compose restart
+
+# Stop services
+docker-compose down
+
+# Stop and remove volumes
+docker-compose down -v
+
+# Rebuild images (after code changes)
+docker-compose build
+docker-compose --profile lazy up -d
+
+# View container details
+docker inspect minimax2api
+
+# Execute commands inside container
+docker exec -it minimax2api bash
+docker exec -it minimax2api curl http://localhost:8000/health
+```
+
+### Docker Health Checks
+
+#### API Server Health
+
+```bash
+# Manual check
+docker exec minimax2api curl -f http://localhost:8000/health
+
+# Check from docker-compose
+docker-compose ps
+# Healthy status shows "(healthy)" next to service name
+```
+
+#### Lazy Server Health
+
+```bash
+# Check tab availability
+docker exec minimax2api-lazy curl http://localhost:5005/status
+
+# Expected:
+# {
+#   "tabs_available": 12,
+#   "tabs_total": 15,
+#   "accounts": 3,
+#   "emails": ["acc1@...", "acc2@...", "acc3@..."]
+# }
+```
+
+### Troubleshooting Docker Deployment
+
+#### Issue: Container exits immediately
+
+```bash
+# Check logs
+docker-compose logs api
+
+# Common causes:
+# 1. Missing config.json
+docker run -v ./config.json:/app/config.json minimax2api
+
+# 2. Invalid JSON in config.json
+docker exec minimax2api python3 -c "import json; json.load(open('config.json'))"
+
+# 3. Port conflict
+# Change port in docker-compose.yml or stop conflicting service
+```
+
+#### Issue: Chrome crashes in Docker
+
+```bash
+# Check shared memory size
+docker inspect minimax2api-lazy | grep ShmSize
+
+# Increase if needed (in docker-compose.yml):
+lazy-server:
+  shm_size: '4gb'  # Increase from 2gb
+```
+
+#### Issue: High memory usage
+
+```bash
+# Check memory usage
+docker stats minimax2api-lazy
+
+# Reduce browsers
+MAX_BROWSERS=2 docker-compose --profile lazy up -d
+
+# Or reduce tabs per browser
+TABS_PER_BROWSER=3 docker-compose --profile lazy up -d
+```
+
+#### Issue: Cannot access API from host
+
+```bash
+# Verify port binding
+docker-compose ps
+# Should show: 0.0.0.0:8000->8000/tcp
+
+# Check firewall
+sudo ufw allow 8000/tcp
+
+# Test from inside container
+docker exec minimax2api curl http://localhost:8000/health
+```
+
+### Docker Production Best Practices
+
+1. **Use docker-compose.override.yml** for environment-specific settings
+2. **Set resource limits** to prevent OOM
+3. **Configure log rotation** (max-size, max-file)
+4. **Use health checks** for auto-restart
+5. **Mount config.json as read-only** (`:ro`)
+6. **Back up config.json** regularly
+7. **Monitor disk space** (logs can grow)
+8. **Use named volumes** for pool_sessions.json persistence
+
+### Scaling with Docker
+
+#### Horizontal Scaling (Multiple API Instances)
+
+```yaml
+# docker-compose.scale.yml
+services:
+  api:
+    deploy:
+      replicas: 3
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - api
+```
+
+```bash
+docker-compose -f docker-compose.yml -f docker-compose.scale.yml up -d --scale api=3
+```
+
+#### nginx.conf (Load Balancer)
+
+```nginx
+upstream minimax_backend {
+    least_conn;
+    server minimax2api_api_1:8000;
+    server minimax2api_api_2:8000;
+    server minimax2api_api_3:8000;
+}
+
+server {
+    listen 80;
+    location / {
+        proxy_pass http://minimax_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+---
+
+## 🎯 Production Deployment - Pool Mode (Manual Installation)
 
 **Best for:** High throughput, consistent latency, 24/7 operation
 
