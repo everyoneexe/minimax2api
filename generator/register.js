@@ -71,6 +71,7 @@ function rsaEncrypt(plaintext) {
 async function getAkamaiCookie() {
   const browser = await puppeteer.launch({
     headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
   });
 
@@ -353,6 +354,7 @@ async function waitForOTP(sid, maxMs = 90_000, browserMethod = false) {
   if (browserMethod) {
     const browser = await puppeteer.launch({
       headless: true,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
 

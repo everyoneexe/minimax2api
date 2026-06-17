@@ -64,6 +64,7 @@ async function waitForOTP(sid, maxWait = 90000) {
 async function registerWithBrowser(email, password, sid) {
   const browser = await puppeteer.launch({
     headless: true,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',

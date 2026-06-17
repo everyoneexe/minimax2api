@@ -350,6 +350,7 @@ async function runAccount(email, pass, accountCount) {
 
   const browser = await puppeteer.launch({
     headless: HEADLESS ? 'new' : false,
+    executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium',
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
