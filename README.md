@@ -555,4 +555,12 @@ grep ERROR api.log
 
 ## 📝 许可证
 
-MIT
+AGPL-3.0
+
+本项目采用 GNU Affero General Public License v3.0 许可证。这意味着：
+- ✅ 您可以自由使用、修改和分发
+- ✅ 修改后的版本也必须开源
+- ✅ 作为网络服务使用时也必须提供源代码
+- ⚠️ 使用风险自负，不提供任何担保
+
+详见 [LICENSE](LICENSE) 文件。

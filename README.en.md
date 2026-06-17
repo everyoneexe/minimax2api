@@ -553,4 +553,12 @@ Contributions welcome! Please:
 
 ## 📝 License
 
-MIT
+AGPL-3.0
+
+This project is licensed under the GNU Affero General Public License v3.0. This means:
+- ✅ You can freely use, modify, and distribute
+- ✅ Modified versions must also be open source
+- ✅ Network use requires source code disclosure
+- ⚠️ Provided as-is with no warranty
+
+See [LICENSE](LICENSE) file for details.
