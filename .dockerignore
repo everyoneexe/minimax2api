@@ -1,0 +1,75 @@
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+venv/
+env/
+.venv/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+package-lock.json
+
+# Config & Data (mounted as volumes)
+config.json
+pool_sessions.json
+accounts.json
+*.har
+
+# Logs
+*.log
+daemon.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS
+Thumbs.db
+
+# Factory/Omozon sessions
+.omc/
+
+# Development files
+generator/unused/
+generator/config.json.recovered
+generator/fresh_accounts.json
+generator/test_*.js
+
+# Testing
+testing/
+test_*.py
+
+# Frontend (not needed in Docker)
+frontend/
+
+# Static (frontend build artifacts)
+static/
+admin_static/
+
+# Documentation
+README.en.md
+DEPLOYMENT.md
+*.md
+!requirements.txt
+
+# Environment
+.env

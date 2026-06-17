@@ -71,6 +71,71 @@ cp config.example.json config.json
 # Edit config.json with your MiniMax accounts
 ```
 
+### 🐳 Docker Deployment (Recommended)
+
+**Benefits:** One-command startup, dependency isolation, cross-platform support
+
+#### 1. Prepare Configuration
+
+```bash
+cp config.example.json config.json
+# Edit config.json with your MiniMax accounts
+```
+
+#### 2. Start Services
+
+**Lazy Mode (Recommended):**
+```bash
+docker-compose --profile lazy up -d
+```
+
+**Pool Mode:**
+```bash
+docker-compose --profile pool up -d
+```
+
+**Both Modes:**
+```bash
+docker-compose --profile lazy --profile pool up -d
+```
+
+#### 3. Access API
+
+```
+http://localhost:8000/v1/chat/completions
+http://localhost:8000/health
+```
+
+#### 4. View Logs
+
+```bash
+# API server
+docker-compose logs -f api
+
+# Lazy server
+docker-compose logs -f lazy-server
+
+# Session daemon
+docker-compose logs -f session-daemon
+```
+
+#### 5. Stop Services
+
+```bash
+docker-compose down
+```
+
+#### Docker Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | API server port | 8000 |
+| `LAZY_PORT` | Lazy server port | 5005 |
+| `MAX_BROWSERS` | Maximum browser instances | 3 |
+| `TABS_PER_BROWSER` | Tabs per browser | 5 |
+| `POOL_SIZE` | Session pool target size | 20 |
+| `MAX_ACCOUNTS` | Max accounts for pool mode | 5 |
+
 ---
 
 ## ⚙️ Configuration

@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # Main API server
+  api:
+    build: .
+    container_name: minimax2api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./pool_sessions.json:/app/pool_sessions.json
+    environment:
+      - PORT=8000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - minimax2api
+
+  # Lazy mode server (browser automation)
+  lazy-server:
+    build: .
+    container_name: minimax2api-lazy
+    ports:
+      - "5005:5005"
+    volumes:
+      - ./config.json:/app/config.json:ro
+    environment:
+      - LAZY_PORT=5005
+      - MAX_BROWSERS=3
+      - TABS_PER_BROWSER=5
+    command: node generator/lazy_server.js
+    restart: unless-stopped
+    profiles: ["lazy"]
+    networks:
+      - minimax2api
+    # Add SHM size for Chrome stability
+    shm_size: '2gb'
+
+  # Session daemon (pool mode)
+  session-daemon:
+    build: .
+    container_name: minimax2api-daemon
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./pool_sessions.json:/app/pool_sessions.json
+    environment:
+      - POOL_SIZE=20
+      - MAX_ACCOUNTS=5
+      - HEADLESS=true
+    command: node generator/session_daemon.js
+    restart: unless-stopped
+    profiles: ["pool"]
+    networks:
+      - minimax2api
+    # Add SHM size for Chrome stability
+    shm_size: '2gb'
+
+networks:
+  minimax2api:
+    driver: bridge
