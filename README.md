@@ -73,6 +73,71 @@ cp config.example.json config.json
 # 编辑 config.json 填入你的 MiniMax 账户
 ```
 
+### 🐳 Docker 部署（推荐）
+
+**优势：** 一键启动、依赖隔离、跨平台支持
+
+#### 1. 准备配置
+
+```bash
+cp config.example.json config.json
+# 编辑 config.json 添加你的 MiniMax 账户
+```
+
+#### 2. 启动服务
+
+**Lazy 模式（推荐）：**
+```bash
+docker-compose --profile lazy up -d
+```
+
+**Pool 模式：**
+```bash
+docker-compose --profile pool up -d
+```
+
+**同时运行两种模式：**
+```bash
+docker-compose --profile lazy --profile pool up -d
+```
+
+#### 3. 访问 API
+
+```
+http://localhost:8000/v1/chat/completions
+http://localhost:8000/health
+```
+
+#### 4. 查看日志
+
+```bash
+# API 服务器
+docker-compose logs -f api
+
+# Lazy server
+docker-compose logs -f lazy-server
+
+# Session daemon
+docker-compose logs -f session-daemon
+```
+
+#### 5. 停止服务
+
+```bash
+docker-compose down
+```
+
+#### Docker 环境变量
+
+| 变量 | 描述 | 默认值 |
+|------|------|--------|
+| `PORT` | API 服务器端口 | 8000 |
+| `LAZY_PORT` | Lazy server 端口 | 5005 |
+| `MAX_BROWSERS` | 最大浏览器实例数 | 3 |
+| `TABS_PER_BROWSER` | 每个浏览器的标签页数 | 5 |
+| `POOL_SIZE` | 会话池目标大小 | 20 |
+| `MAX_ACCOUNTS` | Pool 模式最大账户数 | 5 |
+
 ---
 
 ## ⚙️ 配置
