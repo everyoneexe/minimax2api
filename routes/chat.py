@@ -18,6 +18,76 @@ router = APIRouter()
 debug_logger = logging.getLogger("minimax2api.debug")
 
 
+def normalize_tool_args(arguments: str) -> str:
+    """Fix common model mistakes in tool call arguments.
+
+    Models sometimes use wrong field names based on tool descriptions.
+    E.g. ask_followup_question: model uses label/description instead of text/mode.
+    """
+    if not arguments:
+        return arguments
+    try:
+        data = json.loads(arguments)
+    except json.JSONDecodeError:
+        return arguments
+
+    # ask_followup_question: follow_up items should have text/mode not label/description
+    if "follow_up" in data and isinstance(data["follow_up"], list):
+        fixed = []
+        for item in data["follow_up"]:
+            if isinstance(item, dict):
+                new_item = {}
+                # text field — accept label, text, value, option, suggestion
+                for key in ("text", "label", "value", "option", "suggestion", "answer"):
+                    if key in item:
+                        new_item["text"] = item[key]
+                        break
+                if "text" not in new_item:
+                    new_item["text"] = str(item)
+                # mode field — optional
+                if "mode" in item:
+                    new_item["mode"] = item["mode"]
+                else:
+                    new_item["mode"] = None
+                fixed.append(new_item)
+            else:
+                fixed.append({"text": str(item), "mode": None})
+        data["follow_up"] = fixed
+        return json.dumps(data, ensure_ascii=False)
+
+    return arguments
+
+
+def normalize_chunk(chunk_str: str) -> str:
+    """Normalize tool_call arguments in an SSE chunk string."""
+    if "tool_calls" not in chunk_str or "arguments" not in chunk_str:
+        return chunk_str
+    try:
+        if not chunk_str.startswith("data: "):
+            return chunk_str
+        payload = json.loads(chunk_str[6:].strip())
+        choices = payload.get("choices", [])
+        for choice in choices:
+            delta = choice.get("delta", {})
+            for tc in delta.get("tool_calls", []):
+                fn = tc.get("function", {})
+                if fn.get("arguments"):
+                    fn["arguments"] = normalize_tool_args(fn["arguments"])
+        return "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
+    except Exception:
+        return chunk_str
+
+
+def normalize_response(result: dict) -> dict:
+    """Normalize tool_call arguments in a non-streaming response."""
+    for choice in result.get("choices", []):
+        for tc in choice.get("message", {}).get("tool_calls", []) or []:
+            fn = tc.get("function", {})
+            if fn.get("arguments"):
+                fn["arguments"] = normalize_tool_args(fn["arguments"])
+    return result
+
+
 # ── OpenAI-compatible ────────────────────────────────────────────
 
 @router.post("/v1/chat/completions")
@@ -41,8 +111,9 @@ async def chat_completions(
         async def logged_stream():
             chunks = []
             async for chunk in proxy_chat_stream(request.model, messages, params, proxy_key):
-                chunks.append(chunk)
-                yield chunk
+                normalized = normalize_chunk(chunk)
+                chunks.append(normalized)
+                yield normalized
             debug_logger.info("=== STREAM RESPONSE ===\n%s", "".join(chunks)[:5000])
 
         return StreamingResponse(
@@ -56,6 +127,7 @@ async def chat_completions(
         )
 
     result = await proxy_chat(request.model, messages, params, proxy_key)
+    result = normalize_response(result)
     debug_logger.info("=== RESPONSE ===\n%s", json.dumps(result, ensure_ascii=False)[:5000])
     return JSONResponse(result)
 
