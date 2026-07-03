@@ -9,67 +9,8 @@ import uuid
 
 
 def tools_to_system_prompt(tools: list) -> str:
-    """Convert OpenAI tools list to JSON-based system prompt injection."""
-    if not tools:
-        return ""
-
-    tool_names = [t.get("function", {}).get("name", "") for t in tools if t.get("type") == "function"]
-
-    lines = [
-        "## TOOL USE INSTRUCTIONS",
-        "",
-        "You have access to tools. When you need to call a tool, respond with ONLY this JSON format:",
-        "",
-        '```json',
-        '{"tool": "TOOL_NAME", "parameters": {"param1": "value1"}}',
-        '```',
-        "",
-        f"Available tools: {', '.join(tool_names)}",
-        "",
-        "RULES:",
-        "- When a tool is needed, output ONLY the JSON block above, nothing else",
-        "- Use the exact tool name from the list above",
-        "- Include all required parameters",
-        "",
-        "## Tool Definitions:",
-        "",
-    ]
-
-    for tool in tools:
-        if tool.get("type") != "function":
-            continue
-        fn = tool.get("function", {})
-        name = fn.get("name", "")
-        desc = fn.get("description", "")
-        params = fn.get("parameters", {})
-
-        lines.append(f"### {name}")
-        if desc:
-            lines.append(f"Description: {desc[:200]}")
-
-        props = params.get("properties", {})
-        required = params.get("required", [])
-        if props:
-            lines.append("Parameters:")
-            for pname, pinfo in props.items():
-                req = " (REQUIRED)" if pname in required else " (optional)"
-                ptype = pinfo.get("type", "string")
-                pdesc = pinfo.get("description", "")[:100]
-                lines.append(f"  - {pname} ({ptype}){req}: {pdesc}")
-        lines.append("")
-
-    # Example
-    if tool_names:
-        first_tool = tools[0].get("function", {})
-        example_name = first_tool.get("name", "tool_name")
-        example_params = first_tool.get("parameters", {}).get("properties", {})
-        example_args = {k: "example_value" for k in list(example_params.keys())[:2]}
-        lines.append("## Example:")
-        lines.append('```json')
-        lines.append(json.dumps({"tool": example_name, "parameters": example_args}))
-        lines.append('```')
-
-    return "\n".join(lines)
+    """Native tool_call is used — no system prompt injection needed."""
+    return ""
 
 
 def inject_tools_into_messages(messages: list, tools: list) -> list:
