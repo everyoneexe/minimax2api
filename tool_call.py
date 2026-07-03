@@ -1,7 +1,7 @@
 """
 Tool call support for MiniMax web agent API.
 Converts OpenAI tools format to system prompt injection,
-then parses XML tool call responses back to OpenAI format.
+then parses JSON tool call responses back to OpenAI format.
 """
 import json
 import re
@@ -9,32 +9,27 @@ import uuid
 
 
 def tools_to_system_prompt(tools: list) -> str:
-    """Convert OpenAI tools list to XML system prompt injection."""
+    """Convert OpenAI tools list to JSON-based system prompt injection."""
     if not tools:
         return ""
 
     tool_names = [t.get("function", {}).get("name", "") for t in tools if t.get("type") == "function"]
 
     lines = [
-        "## CRITICAL INSTRUCTION - TOOL USE REQUIRED",
+        "## TOOL USE INSTRUCTIONS",
         "",
-        "You MUST use tools to respond. NEVER respond with plain text without a tool call.",
-        "When you want to call a tool, you MUST output ONLY this XML format and nothing else:",
+        "You have access to tools. When you need to call a tool, respond with ONLY this JSON format:",
         "",
-        "<tool_calls>",
-        '  <invoke name="TOOL_NAME">',
-        '    <parameter name="PARAM_NAME">value</parameter>',
-        "  </invoke>",
-        "</tool_calls>",
+        '```json',
+        '{"tool": "TOOL_NAME", "parameters": {"param1": "value1"}}',
+        '```',
         "",
         f"Available tools: {', '.join(tool_names)}",
         "",
         "RULES:",
-        "- You MUST call a tool in EVERY response",
-        "- Output ONLY the <tool_calls> XML, no other text before or after",
-        "- Always include required parameters",
-        "- If you want to say something to the user, use ask_followup_question tool",
-        "- If you finished a task, use attempt_completion tool",
+        "- When a tool is needed, output ONLY the JSON block above, nothing else",
+        "- Use the exact tool name from the list above",
+        "- Include all required parameters",
         "",
         "## Tool Definitions:",
         "",
@@ -50,7 +45,6 @@ def tools_to_system_prompt(tools: list) -> str:
 
         lines.append(f"### {name}")
         if desc:
-            # Truncate long descriptions
             lines.append(f"Description: {desc[:200]}")
 
         props = params.get("properties", {})
@@ -64,19 +58,16 @@ def tools_to_system_prompt(tools: list) -> str:
                 lines.append(f"  - {pname} ({ptype}){req}: {pdesc}")
         lines.append("")
 
-    lines.append("## Example tool call:")
-    lines.append("<tool_calls>")
+    # Example
     if tool_names:
         first_tool = tools[0].get("function", {})
         example_name = first_tool.get("name", "tool_name")
         example_params = first_tool.get("parameters", {}).get("properties", {})
-        lines.append(f'  <invoke name="{example_name}">')
-        for pname, pinfo in list(example_params.items())[:2]:
-            lines.append(f'    <parameter name="{pname}">example_value</parameter>')
-        lines.append("  </invoke>")
-    lines.append("</tool_calls>")
-    lines.append("")
-    lines.append("REMEMBER: Output ONLY the XML tool call. No other text.")
+        example_args = {k: "example_value" for k in list(example_params.keys())[:2]}
+        lines.append("## Example:")
+        lines.append('```json')
+        lines.append(json.dumps({"tool": example_name, "parameters": example_args}))
+        lines.append('```')
 
     return "\n".join(lines)
 
@@ -89,10 +80,8 @@ def inject_tools_into_messages(messages: list, tools: list) -> list:
     tools_prompt = tools_to_system_prompt(tools)
     messages = list(messages)
 
-    # Existing system message varsa ekle, yoksa başa ekle
     if messages and messages[0].get("role") == "system":
         existing = messages[0].get("content", "")
-        # content may be a list of blocks — extract text or append new block
         if isinstance(existing, list):
             messages[0] = {**messages[0], "content": existing + [{"type": "text", "text": tools_prompt}]}
         else:
@@ -104,16 +93,35 @@ def inject_tools_into_messages(messages: list, tools: list) -> list:
 
 
 def parse_tool_calls(text: str) -> list:
-    """Parse XML tool calls from model response. Returns list of OpenAI-format tool calls."""
+    """Parse JSON tool calls from model response."""
     if not text:
         return []
 
-    # <tool_calls>...<invoke name="...">...</invoke>...</tool_calls>
+    # JSON format: ```json\n{"tool": "...", "parameters": {...}}\n```
+    json_matches = re.findall(r'```(?:json)?\s*(\{[^`]+\})\s*```', text, re.DOTALL)
+    for match in json_matches:
+        try:
+            data = json.loads(match.strip())
+            if "tool" in data:
+                return [_make_tool_call(data["tool"], json.dumps(data.get("parameters", {})))]
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    # Bare JSON: {"tool": "...", "parameters": {...}}
+    json_matches2 = re.findall(r'\{[^{}]*"tool"\s*:[^{}]*\}', text, re.DOTALL)
+    for match in json_matches2:
+        try:
+            data = json.loads(match.strip())
+            if "tool" in data:
+                return [_make_tool_call(data["tool"], json.dumps(data.get("parameters", {})))]
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    # Legacy XML format fallback
     tc_match = re.search(r'<tool_calls>(.*?)</tool_calls>', text, re.DOTALL)
     if tc_match:
         return _parse_invokes(tc_match.group(1))
 
-    # <tool_call>...</tool_call> (singular)
     tc_matches = re.findall(r'<tool_call>(.*?)</tool_call>', text, re.DOTALL)
     if tc_matches:
         result = []
@@ -132,7 +140,6 @@ def _parse_invokes(text: str) -> list:
     matches = re.findall(r'<invoke\s+name="([^"]+)">(.*?)</invoke>', text, re.DOTALL)
     result = []
     for i, (name, body) in enumerate(matches):
-        # Build args from <parameter name="...">value</parameter>
         params = re.findall(r'<parameter\s+name="([^"]+)">(.*?)</parameter>', body, re.DOTALL)
         args_dict = {k: v.strip() for k, v in params}
         result.append(_make_tool_call(name.strip(), json.dumps(args_dict), i))
@@ -151,11 +158,16 @@ def _make_tool_call(name: str, arguments: str, index: int = 0) -> dict:
 
 
 def strip_tool_calls(text: str) -> str:
-    """Remove tool call XML from text content."""
+    """Remove tool call JSON/XML from text content."""
+    text = re.sub(r'```(?:json)?\s*\{[^`]*"tool"[^`]*\}\s*```', '', text, flags=re.DOTALL)
     text = re.sub(r'<tool_calls>.*?</tool_calls>', '', text, flags=re.DOTALL)
     text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL)
     return text.strip()
 
 
 def has_tool_calls(text: str) -> bool:
+    if re.search(r'```(?:json)?\s*\{[^`]*"tool"\s*:', text, re.DOTALL):
+        return True
+    if re.search(r'\{[^{}]*"tool"\s*:', text):
+        return True
     return bool(re.search(r'<tool_calls>|<tool_call>', text))

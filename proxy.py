@@ -194,9 +194,6 @@ async def proxy_chat(model: str, messages: list, params: dict, proxy_key: str) -
     account_email = acct.email
     tools = params.get("tools")
     user_agent = params.get("_user_agent", "")
-    is_agent_client = any(x in user_agent.lower() for x in ["roo", "cline", "vscode"])
-    if not is_agent_client:
-        tools = None
 
     logger.debug("REQUEST body: model=%s ua=%s tools=%s", resolved_model, user_agent, json.dumps(tools))
 
@@ -240,9 +237,6 @@ async def proxy_chat_stream(
     resolved_model = resolve_model(model)
     tools = params.get("tools")
     user_agent = params.get("_user_agent", "")
-    is_agent_client = any(x in user_agent.lower() for x in ["roo", "cline", "vscode"])
-    if not is_agent_client:
-        tools = None
 
     logger.debug("STREAM REQUEST: model=%s ua=%s tools=%s", resolved_model, user_agent, json.dumps(tools))
 
