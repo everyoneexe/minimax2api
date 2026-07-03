@@ -9,18 +9,35 @@ import uuid
 
 
 def tools_to_system_prompt(tools: list) -> str:
-    """Inject minimal tool list so model knows what tools are available."""
+    """Inject tool definitions with explicit JSON call format."""
     if not tools:
         return ""
 
-    lines = ["You have access to these tools (use native tool calling):"]
+    tool_names = [t.get("function", {}).get("name", "") for t in tools if t.get("type") == "function"]
+
+    lines = [
+        "TOOL CALLING INSTRUCTIONS:",
+        "When you need to call a tool, output ONLY a JSON object on its own line:",
+        '{"name":"TOOL_NAME","arguments":{"param":"value"}}',
+        "",
+        f"Available tools: {', '.join(tool_names)}",
+        "",
+    ]
+
     for tool in tools:
         if tool.get("type") != "function":
             continue
         fn = tool.get("function", {})
         name = fn.get("name", "")
-        desc = fn.get("description", "")[:120]
-        lines.append(f"- {name}: {desc}")
+        desc = fn.get("description", "")
+        params = fn.get("parameters", {})
+        props = params.get("properties", {})
+        required = params.get("required", [])
+        lines.append(f"{name}: {desc[:120]}")
+        for pname, pinfo in list(props.items())[:5]:
+            req = "*" if pname in required else ""
+            lines.append(f"  {pname}{req}: {pinfo.get('description','')[:80]}")
+        lines.append("")
 
     return "\n".join(lines)
 
@@ -46,13 +63,21 @@ def inject_tools_into_messages(messages: list, tools: list) -> list:
 
 
 def parse_tool_calls(text: str) -> list:
-    """Parse JSON tool calls from model response."""
+    """Parse tool calls from model response — JSON format: {"name":"...","arguments":{...}}"""
     if not text:
         return []
 
-    # JSON format: ```json\n{"tool": "...", "parameters": {...}}\n```
-    json_matches = re.findall(r'```(?:json)?\s*(\{[^`]+\})\s*```', text, re.DOTALL)
-    for match in json_matches:
+    # New format: {"name":"tool_name","arguments":{...}}
+    for match in re.findall(r'\{[^{}]*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^{}]*\}[^{}]*\}', text, re.DOTALL):
+        try:
+            data = json.loads(match.strip())
+            if "name" in data and "arguments" in data:
+                return [_make_tool_call(data["name"], json.dumps(data["arguments"]))]
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    # Legacy JSON: {"tool": "...", "parameters": {...}}
+    for match in re.findall(r'```(?:json)?\s*(\{[^`]+\})\s*```', text, re.DOTALL):
         try:
             data = json.loads(match.strip())
             if "tool" in data:
@@ -60,31 +85,10 @@ def parse_tool_calls(text: str) -> list:
         except (json.JSONDecodeError, KeyError):
             continue
 
-    # Bare JSON: {"tool": "...", "parameters": {...}}
-    json_matches2 = re.findall(r'\{[^{}]*"tool"\s*:[^{}]*\}', text, re.DOTALL)
-    for match in json_matches2:
-        try:
-            data = json.loads(match.strip())
-            if "tool" in data:
-                return [_make_tool_call(data["tool"], json.dumps(data.get("parameters", {})))]
-        except (json.JSONDecodeError, KeyError):
-            continue
-
-    # Legacy XML format fallback
+    # Legacy XML fallback
     tc_match = re.search(r'<tool_calls>(.*?)</tool_calls>', text, re.DOTALL)
     if tc_match:
         return _parse_invokes(tc_match.group(1))
-
-    tc_matches = re.findall(r'<tool_call>(.*?)</tool_call>', text, re.DOTALL)
-    if tc_matches:
-        result = []
-        for i, content in enumerate(tc_matches):
-            name_m = re.search(r'<name>(.*?)</name>', content)
-            params_m = re.search(r'<(?:parameters|input)>(.*?)</(?:parameters|input)>', content, re.DOTALL)
-            if name_m:
-                args = params_m.group(1).strip() if params_m else "{}"
-                result.append(_make_tool_call(name_m.group(1).strip(), args, i))
-        return result
 
     return []
 
@@ -111,16 +115,16 @@ def _make_tool_call(name: str, arguments: str, index: int = 0) -> dict:
 
 
 def strip_tool_calls(text: str) -> str:
-    """Remove tool call JSON/XML from text content."""
+    """Remove tool call JSON from text content."""
+    text = re.sub(r'\{[^{}]*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^{}]*\}[^{}]*\}', '', text, flags=re.DOTALL)
     text = re.sub(r'```(?:json)?\s*\{[^`]*"tool"[^`]*\}\s*```', '', text, flags=re.DOTALL)
     text = re.sub(r'<tool_calls>.*?</tool_calls>', '', text, flags=re.DOTALL)
-    text = re.sub(r'<tool_call>.*?</tool_call>', '', text, flags=re.DOTALL)
     return text.strip()
 
 
 def has_tool_calls(text: str) -> bool:
+    if re.search(r'\{[^{}]*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:', text):
+        return True
     if re.search(r'```(?:json)?\s*\{[^`]*"tool"\s*:', text, re.DOTALL):
         return True
-    if re.search(r'\{[^{}]*"tool"\s*:', text):
-        return True
-    return bool(re.search(r'<tool_calls>|<tool_call>', text))
+    return bool(re.search(r'<tool_calls>', text))

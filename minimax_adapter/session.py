@@ -208,6 +208,8 @@ async def stream_message(
                         chunk = event.get("agent_message_chunk", {})
                         if chunk.get("finish_reason") == "error" and chunk.get("finish"):
                             raise RuntimeError("TRANSIENT_ERROR: finish_reason=error")
+                        if chunk.get("finish_reason") == "toolUse" and chunk.get("finish"):
+                            chunk["finish_reason"] = "stop"
                     yield event
                 except json.JSONDecodeError:
                     continue
@@ -255,6 +257,8 @@ async def stream_message(
                         chunk = event.get("agent_message_chunk", {})
                         if chunk.get("finish_reason") == "error" and chunk.get("finish"):
                             raise RuntimeError("TRANSIENT_ERROR: finish_reason=error")
+                        if chunk.get("finish_reason") == "toolUse" and chunk.get("finish"):
+                            chunk["finish_reason"] = "stop"
                     yield event
                 except json.JSONDecodeError:
                     continue
