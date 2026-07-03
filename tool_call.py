@@ -43,22 +43,28 @@ def tools_to_system_prompt(tools: list) -> str:
 
 
 def inject_tools_into_messages(messages: list, tools: list) -> list:
-    """Inject tools definition into messages as system prompt."""
+    """Inject tools definition — append to last user message for visibility."""
     if not tools:
         return messages
 
     tools_prompt = tools_to_system_prompt(tools)
+    if not tools_prompt:
+        return messages
+
     messages = list(messages)
 
-    if messages and messages[0].get("role") == "system":
-        existing = messages[0].get("content", "")
-        if isinstance(existing, list):
-            messages[0] = {**messages[0], "content": existing + [{"type": "text", "text": tools_prompt}]}
-        else:
-            messages[0] = {**messages[0], "content": existing + "\n\n" + tools_prompt}
-    else:
-        messages.insert(0, {"role": "system", "content": tools_prompt})
+    # Append to last user message so model sees it right before responding
+    for i in range(len(messages) - 1, -1, -1):
+        if messages[i].get("role") == "user":
+            content = messages[i].get("content", "")
+            if isinstance(content, str):
+                messages[i] = {**messages[i], "content": content + "\n\n---\n" + tools_prompt}
+            elif isinstance(content, list):
+                messages[i] = {**messages[i], "content": content + [{"type": "text", "text": "\n\n---\n" + tools_prompt}]}
+            return messages
 
+    # Fallback: prepend as system message
+    messages.insert(0, {"role": "system", "content": tools_prompt})
     return messages
 
 
