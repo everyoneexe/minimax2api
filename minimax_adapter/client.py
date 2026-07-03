@@ -106,9 +106,6 @@ def messages_to_content(messages: list) -> str:
     system_text = ""
     parts = []
 
-    # Disable image generation by default — proxy acts as text API
-    NO_IMAGE_INSTRUCTION = "Do not generate, create, or attach images or files. Respond with text only. Do not use any image generation tools or capabilities."
-
     for m in messages:
         content = ""
         if isinstance(m.get("content"), str):
@@ -124,23 +121,20 @@ def messages_to_content(messages: list) -> str:
         else:
             parts.append(f"{m['role']}: {content}")
 
-    # Inject no-image instruction into system prompt
-    if system_text:
-        system_text = f"{NO_IMAGE_INSTRUCTION}\n\n{system_text}"
-    else:
-        system_text = NO_IMAGE_INSTRUCTION
-
     # Simple single-message case
-    if len(parts) == 1:
+    if len(parts) == 1 and not system_text:
         last = messages[-1] if messages else {}
         c = last.get("content", "")
-        user_content = c if isinstance(c, str) else "\n".join(
+        return c if isinstance(c, str) else "\n".join(
             p.get("text", "") for p in c if p.get("type") == "text"
         )
-        return f"[System: {system_text}]\nuser: {user_content}"
 
     # Multi-turn conversation format
-    result_parts = [f"[System: {system_text}]"]
+    result_parts = []
+    if system_text:
+        result_parts.append(f"[System: {system_text}]")
+    result_parts.extend(parts)
+    return "\n".join(result_parts) or "hi"
     result_parts.extend(parts)
     return "\n".join(result_parts) or "hi"
 
@@ -314,11 +308,10 @@ async def web_agent_chat(
                     break
         elif etype == 6:
             chunk = event.get("agent_message_chunk", {})
-            if chunk.get("role") == "assistant":
-                if chunk.get("msg_content"):
-                    final_content += chunk["msg_content"]
-                if chunk.get("thinking_content"):
-                    final_thinking += chunk["thinking_content"]
+            if chunk.get("msg_content"):
+                final_content += chunk["msg_content"]
+            if chunk.get("thinking_content"):
+                final_thinking += chunk["thinking_content"]
 
     # Resolve asset URLs (commit-id → download URL)
     if "commit-id-" in final_content:
@@ -472,9 +465,7 @@ async def web_agent_chat_stream(
 
             if etype == 6:
                 chunk = event.get("agent_message_chunk", {})
-                if chunk.get("role") != "assistant":
-                    continue
-                if not sent_role:
+                if not sent_role and (chunk.get("msg_content") or chunk.get("thinking_content")):
                     yield sse_chunk(session_id, model, {"role": "assistant"})
                     sent_role = True
                 if chunk.get("thinking_content"):

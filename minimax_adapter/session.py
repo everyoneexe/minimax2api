@@ -48,9 +48,11 @@ async def create_session(
     ts_ms = ts_s * 1000
 
     model_id = model.replace("-thinking", "") if "thinking" in model else model
-    variant = "" if model == "MiniMax-M3" else "thinking"
 
-    body = {}
+    body = {
+        "team_mode_off": True,
+        "model": f"minimax/{model_id}",
+    }
     body_str = json.dumps(body, separators=(",", ":"))
 
     path = f"/archon/api/v1/agent/{agent_id}/session"
