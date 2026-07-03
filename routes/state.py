@@ -107,10 +107,36 @@ def _run_generator(job: "GeneratorJob"):
                     "status": status,
                 })
                 if status == "success":
-                    job.add_log(
-                        f"✓ {email} — token alındı" if jwt_token else f"✓ {email} — token yok",
-                        "success" if jwt_token else "error",
-                    )
+                    # Otomatik config'e ekle
+                    try:
+                        from config import config_manager as _cm
+                        existing = {a.get("email") for a in _cm.config.accounts}
+                        if email not in existing:
+                            _cm.config.accounts.append({
+                                "email": email,
+                                "password": password,
+                                "name": email.split("@")[0],
+                                "auth_mode": "token",
+                                "is_active": True,
+                                "request_count": 0,
+                                "last_used": 0.0,
+                                "depleted": False,
+                                "temporarily_no_credits": False,
+                                "credits_check_after": 0.0,
+                                "max_concurrent": 5,
+                                "saved_token": "",
+                                "token_expires": 0.0,
+                                "agent_id": "",
+                                "user_id": "",
+                                "saved_cookies": {},
+                                "cookies_expires": 0.0,
+                            })
+                            _cm._save()
+                            job.add_log(f"✓ {email} — config'e eklendi", "success")
+                        else:
+                            job.add_log(f"✓ {email} — zaten mevcut", "success")
+                    except Exception as ce:
+                        job.add_log(f"✓ {email} — config eklenemedi: {ce}", "error")
 
     except FileNotFoundError:
         job.add_log("node bulunamadı. Node.js kurulu mu?", "error")

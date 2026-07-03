@@ -353,11 +353,6 @@ export default function GeneratorPage() {
                 {succeeded > 0 && (
                   <button onClick={selectAllSuccess} className="text-xs text-primary hover:underline">{g.selectAll}</button>
                 )}
-                {selected.size > 0 && (
-                  <Button size="sm" className="h-6 text-xs px-2" onClick={addToConfig}>
-                    <Plus className="mr-1 h-3 w-3" /> Add to Config ({selected.size})
-                  </Button>
-                )}
               </div>
             </div>
             <div className="h-56 overflow-y-auto">
