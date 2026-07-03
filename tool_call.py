@@ -9,8 +9,20 @@ import uuid
 
 
 def tools_to_system_prompt(tools: list) -> str:
-    """Do not inject anything — native tool_call handles tool definitions."""
-    return ""
+    """Inject minimal tool list so model knows what tools are available."""
+    if not tools:
+        return ""
+
+    lines = ["You have access to these tools (use native tool calling):"]
+    for tool in tools:
+        if tool.get("type") != "function":
+            continue
+        fn = tool.get("function", {})
+        name = fn.get("name", "")
+        desc = fn.get("description", "")[:120]
+        lines.append(f"- {name}: {desc}")
+
+    return "\n".join(lines)
 
 
 def inject_tools_into_messages(messages: list, tools: list) -> list:

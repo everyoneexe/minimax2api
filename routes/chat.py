@@ -18,7 +18,36 @@ router = APIRouter()
 debug_logger = logging.getLogger("minimax2api.debug")
 
 
-def normalize_tool_args(arguments: str) -> str:
+def clean_system_message(messages: list) -> list:
+    """Remove Kiro/Claude Code tool references from system messages.
+
+    When running in Kiro IDE, the system prompt contains tool definitions
+    (bash, glob, grep, read, write, etc.) that confuse the model when
+    Roo Code also sends its own tools array.
+    """
+    kiro_tool_markers = [
+        "## tools\n", "## Tools\n", "<tools>", "tool_name:", "tool_use",
+        "bash(", "glob(", "grep(", "read(", "write(", "edit(",
+        "TodoWrite", "WebFetch", "WebSearch", "Task tool",
+        "dispatch_agent", "computer_use",
+    ]
+    result = []
+    for msg in messages:
+        if msg.get("role") == "system":
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                # If system message has Kiro tool markers, strip tool sections
+                if any(marker in content for marker in kiro_tool_markers):
+                    # Keep only up to the first tool definition block
+                    for marker in ["## tools\n", "## Tools\n", "<tools>", "# Tools\n"]:
+                        if marker in content:
+                            content = content[:content.index(marker)].strip()
+                            break
+                    msg = {**msg, "content": content}
+        result.append(msg)
+    return result
+
+
     """Fix common model mistakes in tool call arguments.
 
     Models sometimes use wrong field names based on tool descriptions.
@@ -101,6 +130,12 @@ async def chat_completions(
     params = request.model_dump()
     params["_user_agent"] = user_agent or ""
     messages = [m.model_dump(exclude_none=True) for m in request.messages]
+
+    # When tools present, clean Kiro tool refs from system message and inject tool list
+    if params.get("tools"):
+        messages = clean_system_message(messages)
+        from tool_call import inject_tools_into_messages
+        messages = inject_tools_into_messages(messages, params["tools"])
 
     debug_logger.info("=== REQUEST ===\nUA: %s\nModel: %s\nStream: %s\nMessages: %s\nTools: %s",
         user_agent, request.model, request.stream,
