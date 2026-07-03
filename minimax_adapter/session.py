@@ -52,6 +52,7 @@ async def create_session(
     body = {
         "team_mode_off": True,
         "model": f"minimax/{model_id}",
+        "skill_ids": [],
     }
     body_str = json.dumps(body, separators=(",", ":"))
 

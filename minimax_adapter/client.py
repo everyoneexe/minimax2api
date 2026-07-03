@@ -121,18 +121,31 @@ def messages_to_content(messages: list) -> str:
         else:
             parts.append(f"{m['role']}: {content}")
 
+    # Force text-only mode — disable all built-in tools unconditionally
+    NO_TOOLS = (
+        "CRITICAL SYSTEM CONSTRAINT: You are operating in PURE TEXT MODE. "
+        "ALL tools are DISABLED and FORBIDDEN. This means: "
+        "- Image generation: FORBIDDEN. Never call image generation under any circumstances. "
+        "- Video generation: FORBIDDEN. "
+        "- File creation: FORBIDDEN. "
+        "- Web search: FORBIDDEN. "
+        "- Code execution: FORBIDDEN. "
+        "If the user asks you to create an image, video, or file, you MUST refuse and explain you cannot. "
+        "NEVER output <deliver-assets> or any media tags. TEXT ONLY."
+    )
+    system_text = f"{NO_TOOLS}\n\n{system_text}" if system_text else NO_TOOLS
+
     # Simple single-message case
-    if len(parts) == 1 and not system_text:
+    if len(parts) == 1:
         last = messages[-1] if messages else {}
         c = last.get("content", "")
-        return c if isinstance(c, str) else "\n".join(
+        user_content = c if isinstance(c, str) else "\n".join(
             p.get("text", "") for p in c if p.get("type") == "text"
         )
+        return f"[System: {system_text}]\nuser: {user_content}"
 
     # Multi-turn conversation format
-    result_parts = []
-    if system_text:
-        result_parts.append(f"[System: {system_text}]")
+    result_parts = [f"[System: {system_text}]"]
     result_parts.extend(parts)
     return "\n".join(result_parts) or "hi"
     result_parts.extend(parts)
