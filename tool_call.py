@@ -9,12 +9,47 @@ import uuid
 
 
 def tools_to_system_prompt(tools: list) -> str:
-    """No injection needed — native tool_call works."""
-    return ""
+    """Build a clean tool reference for the model."""
+    if not tools:
+        return ""
+
+    lines = ["You MUST use tools to respond. Available tools:"]
+    for tool in tools:
+        if tool.get("type") != "function":
+            continue
+        fn = tool.get("function", {})
+        name = fn.get("name", "")
+        desc = fn.get("description", "")
+        params = fn.get("parameters", {})
+        props = params.get("properties", {})
+        required = params.get("required", [])
+        lines.append(f"\n{name}: {desc[:200]}")
+        for pname, pinfo in props.items():
+            req = " (required)" if pname in required else ""
+            ptype = pinfo.get("type", "string")
+            pdesc = pinfo.get("description", "")[:100]
+            lines.append(f"  - {pname} ({ptype}){req}: {pdesc}")
+    return "\n".join(lines)
 
 
 def inject_tools_into_messages(messages: list, tools: list) -> list:
-    """No injection needed — tools passed natively via OpenAI tools array."""
+    """Inject tool list into system prompt."""
+    if not tools:
+        return messages
+
+    tools_prompt = tools_to_system_prompt(tools)
+    if not tools_prompt:
+        return messages
+
+    messages = list(messages)
+    if messages and messages[0].get("role") == "system":
+        existing = messages[0].get("content", "")
+        if isinstance(existing, str):
+            messages[0] = {**messages[0], "content": existing + "\n\n" + tools_prompt}
+        elif isinstance(existing, list):
+            messages[0] = {**messages[0], "content": existing + [{"type": "text", "text": tools_prompt}]}
+    else:
+        messages.insert(0, {"role": "system", "content": tools_prompt})
     return messages
 
 
