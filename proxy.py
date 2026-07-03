@@ -195,6 +195,11 @@ async def proxy_chat(model: str, messages: list, params: dict, proxy_key: str) -
     tools = params.get("tools")
     user_agent = params.get("_user_agent", "")
 
+    # Thinking models don't support tool_calls — downgrade when tools present
+    if tools and "thinking" in resolved_model.lower():
+        resolved_model = resolved_model.replace("-thinking", "")
+        logger.debug("Downgraded thinking model to %s for tool_call support", resolved_model)
+
     logger.debug("REQUEST body: model=%s ua=%s tools=%s", resolved_model, user_agent, json.dumps(tools))
 
     async with _track_concurrent(account_email):
@@ -237,6 +242,11 @@ async def proxy_chat_stream(
     resolved_model = resolve_model(model)
     tools = params.get("tools")
     user_agent = params.get("_user_agent", "")
+
+    # Thinking models don't support tool_calls — downgrade when tools present
+    if tools and "thinking" in resolved_model.lower():
+        resolved_model = resolved_model.replace("-thinking", "")
+        logger.debug("Downgraded thinking model to %s for tool_call support", resolved_model)
 
     logger.debug("STREAM REQUEST: model=%s ua=%s tools=%s", resolved_model, user_agent, json.dumps(tools))
 
