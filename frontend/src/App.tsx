@@ -13,7 +13,7 @@ function App() {
   return (
     <LangProvider>
       <Toaster position="top-center" richColors />
-      <BrowserRouter>
+      <BrowserRouter basename="/admin">
         <Routes>
           <Route path="/" element={<AdminLayout />}>
             <Route index element={<Dashboard />} />

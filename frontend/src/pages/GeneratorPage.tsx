@@ -186,20 +186,35 @@ export default function GeneratorPage() {
     setSelected(new Set(emails))
   }
 
-  const addToDaemon = async () => {
+  const addToConfig = async () => {
     if (!selected.size) { toast.error(g.selectAll); return }
+    const selectedAccounts = accounts.filter(a => selected.has(a.email) && a.status === "success")
     try {
-      const res = await fetch(`${API_BASE}/api/accounts/add-to-daemon`, {
+      const cfgRes = await fetch(`${API_BASE}/api/config`, { headers: getAuthHeader() })
+      const cfg = await cfgRes.json()
+      const existing = new Set((cfg.accounts || []).map((a: any) => a.email))
+      const toAdd = selectedAccounts
+        .filter(a => !existing.has(a.email))
+        .map(a => ({
+          email: a.email,
+          password: (a as any).password || "",
+          name: a.email.split("@")[0],
+          auth_mode: "token",
+          is_active: true,
+          request_count: 0,
+        }))
+      if (!toAdd.length) { toast.info("All selected accounts already in config"); return }
+      const newAccounts = [...(cfg.accounts || []), ...toAdd]
+      const saveRes = await fetch(`${API_BASE}/api/config`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...getAuthHeader() },
-        body: JSON.stringify({ emails: [...selected] }),
+        body: JSON.stringify({ ...cfg, accounts: newAccounts }),
       })
-      const data = await res.json()
-      if (res.ok) {
-        toast.success(`${data.added?.length || 0} g.addToDaemon`)
+      if (saveRes.ok) {
+        toast.success(`${toAdd.length} account(s) added to config`)
         setSelected(new Set())
       } else {
-        toast.error(data.detail || "Hata")
+        toast.error("Save failed")
       }
     } catch (e: any) {
       toast.error(e.message)
@@ -339,8 +354,8 @@ export default function GeneratorPage() {
                   <button onClick={selectAllSuccess} className="text-xs text-primary hover:underline">{g.selectAll}</button>
                 )}
                 {selected.size > 0 && (
-                  <Button size="sm" className="h-6 text-xs px-2" onClick={addToDaemon}>
-                    <Plus className="mr-1 h-3 w-3" /> {g.addToDaemon} ({selected.size})
+                  <Button size="sm" className="h-6 text-xs px-2" onClick={addToConfig}>
+                    <Plus className="mr-1 h-3 w-3" /> Add to Config ({selected.size})
                   </Button>
                 )}
               </div>
