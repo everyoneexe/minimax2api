@@ -317,11 +317,21 @@ async def _test_account(acct: Account) -> dict:
 
 
 def get_accounts_status() -> list[dict]:
+    import time as _time
     accounts = config_manager.get_accounts()
+    now = _time.time()
     result = []
     for a in accounts:
         current_concurrent = _get_account_concurrent(a.email)
         max_concurrent = a.max_concurrent if hasattr(a, 'max_concurrent') else 5
+        token_expires = getattr(a, 'token_expires', 0.0)
+        saved_token = getattr(a, 'saved_token', '')
+        token_status = (
+            "valid" if saved_token and token_expires > now + 300
+            else "expiring" if saved_token and token_expires > now
+            else "expired" if saved_token and token_expires <= now
+            else "none"
+        )
         result.append({
             "name": a.name,
             "email": a.email,
@@ -333,6 +343,10 @@ def get_accounts_status() -> list[dict]:
             "auth_mode": a.auth_mode,
             "max_concurrent": max_concurrent,
             "current_concurrent": current_concurrent,
+            "token_status": token_status,
+            "token_expires": token_expires,
+            "token_expires_in": max(0, token_expires - now) if token_expires else 0,
+            "agent_id": getattr(a, 'agent_id', ''),
         })
     return result
 

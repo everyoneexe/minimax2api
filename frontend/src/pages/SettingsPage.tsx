@@ -193,11 +193,20 @@ curl ${baseUrl}/v1/models \\
               </div>
               <div className="flex items-center justify-between py-2 border rounded-lg px-3">
                 <div>
-                  <div className="text-sm font-medium">Lazy Session Mode</div>
-                  <div className="text-xs text-muted-foreground">Create session on-demand instead of using pool. Slower but no Puppeteer needed.</div>
+                  <div className="text-sm font-medium">Mode</div>
+                  <div className="text-xs text-muted-foreground">
+                    {lazySession
+                      ? "Lazy Mode — Puppeteer handles every request (high RAM ~2-3GB)"
+                      : "Token Mode — Puppeteer runs once per account to cache JWT, then pure HTTP (~50MB)"}
+                  </div>
                 </div>
-                <input type="checkbox" checked={lazySession} onChange={e => setLazySession(e.target.checked)}
-                  className="h-4 w-4 rounded" />
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs font-bold ${lazySession ? "text-orange-400" : "text-cyan-400"}`}>
+                    {lazySession ? "Lazy" : "Token"}
+                  </span>
+                  <input type="checkbox" checked={lazySession} onChange={e => setLazySession(e.target.checked)}
+                    className="h-4 w-4 rounded" />
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-sm font-medium">Account Pool Target <span className="text-muted-foreground font-normal text-xs">(0 = disabled)</span></label>

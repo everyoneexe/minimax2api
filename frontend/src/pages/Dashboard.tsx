@@ -1,33 +1,24 @@
 import { useEffect, useState, useRef } from "react"
-import { Server, Activity, Zap, Layers, Database, Cpu, TrendingUp, AlertCircle } from "lucide-react"
+import { Server, Activity, Zap, Layers, Key, TrendingUp, RefreshCw, Clock } from "lucide-react"
 import { getAuthHeader } from "../lib/auth"
 import { API_BASE } from "../lib/api"
 import { useLang } from "../lib/lang"
 
 type AccountStatus = {
   name: string
+  email: string
   is_active: boolean
+  depleted?: boolean
+  temporarily_no_credits?: boolean
   request_count: number
   last_used: number
   auth_mode: string
   max_concurrent?: number
   current_concurrent?: number
-}
-
-type DaemonStatus = {
-  running: boolean
-  pid: number | null
-  pool: { valid: number; total: number }
-  accounts: { email: string; in_daemon: boolean; sessions: number }[]
-  ram?: {
-    daemon_mb: number
-    chromium_total_mb: number
-    chromium_procs: number
-    system_used_pct: number
-    system_used_mb: number
-    system_total_mb: number
-    estimated_mb_per_session: number
-  }
+  token_status?: "valid" | "expiring" | "expired" | "none"
+  token_expires?: number
+  token_expires_in?: number
+  agent_id?: string
 }
 
 export default function Dashboard() {
@@ -37,29 +28,24 @@ export default function Dashboard() {
   const [accStatus, setAccStatus] = useState<AccountStatus[]>([])
   const [models, setModels] = useState<string[]>([])
   const [usage, setUsage] = useState({ total_requests: 0, total_tokens: 0 })
-  const [daemon, setDaemon] = useState<DaemonStatus | null>(null)
+  const [isTokenMode, setIsTokenMode] = useState(true)
   const [reqHistory, setReqHistory] = useState<number[]>(Array(24).fill(0))
-  const [errRate, setErrRate] = useState(0)
   const prevReqRef = useRef<number | null>(null)
 
   const fetchData = async () => {
     try {
-      const [statusRes, usageRes, modelsRes, daemonRes] = await Promise.all([
+      const [statusRes, usageRes, modelsRes, cfgRes] = await Promise.all([
         fetch(`${API_BASE}/api/accounts/status`, { headers: getAuthHeader() }),
         fetch(`${API_BASE}/api/usage`, { headers: getAuthHeader() }),
         fetch(`${API_BASE}/api/models`, { headers: getAuthHeader() }),
-        fetch(`${API_BASE}/api/daemon/status`, { headers: getAuthHeader() }),
+        fetch(`${API_BASE}/api/config`, { headers: getAuthHeader() }),
       ])
       if (statusRes.ok) setAccStatus(await statusRes.json())
       if (usageRes.ok) {
         const u = await usageRes.json()
         const total = u.total_requests || 0
-        // Track request delta for mini chart — skip first poll to avoid spike
         setReqHistory(prev => {
-          if (prevReqRef.current === null) {
-            prevReqRef.current = total
-            return prev
-          }
+          if (prevReqRef.current === null) { prevReqRef.current = total; return prev }
           const delta = total - prevReqRef.current
           prevReqRef.current = total
           if (delta > 0) return [...prev.slice(1), delta]
@@ -71,7 +57,10 @@ export default function Dashboard() {
         const data = await modelsRes.json()
         setModels(data.data?.map((m: any) => m.id) || data || [])
       }
-      if (daemonRes.ok) setDaemon(await daemonRes.json())
+      if (cfgRes.ok) {
+        const cfg = await cfgRes.json()
+        setIsTokenMode(!cfg.lazy_session)
+      }
     } catch (err) {
       console.error("Dashboard fetch error:", err)
     }
@@ -83,28 +72,32 @@ export default function Dashboard() {
     return () => clearInterval(t)
   }, [])
 
-  const active = accStatus.filter(a => a.is_active && !(a as any).depleted).length
-  const depleted = accStatus.filter(a => (a as any).depleted).length
-  const disabled = accStatus.filter(a => !a.is_active && !(a as any).depleted).length + depleted
+  const active = accStatus.filter(a => a.is_active && !a.depleted).length
+  const depleted = accStatus.filter(a => a.depleted).length
   const total = accStatus.length
-  const poolValid = daemon?.pool.valid ?? 0
-  const poolTotal = daemon?.pool.total ?? 0
+  const tokenValid = accStatus.filter(a => a.token_status === "valid").length
+  const tokenNone = accStatus.filter(a => a.token_status === "none" || a.token_status === "expired").length
 
   return (
     <div className="space-y-6 max-w-6xl">
-      <div>
-        <h2 className="text-3xl font-extrabold tracking-tight">{d.title}</h2>
-        <p className="text-muted-foreground mt-1">{d.subtitle}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-extrabold tracking-tight">{d.title}</h2>
+          <p className="text-muted-foreground mt-1">{d.subtitle}</p>
+        </div>
+        <span className={`px-3 py-1 rounded-full text-xs font-bold ${isTokenMode ? "bg-cyan-500/15 text-cyan-400" : "bg-orange-500/15 text-orange-400"}`}>
+          {isTokenMode ? "Token Mode" : "Lazy Mode"}
+        </span>
       </div>
 
       {/* Top stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={<Server className="h-4 w-4" />} color="emerald"
           title={d.availableAccounts} value={String(active)}
-          sub={`${disabled} disabled · ${total} total`} />
-        <StatCard icon={<Database className="h-4 w-4" />} color="blue"
-          title={d.pool} value={String(poolValid)}
-          sub={`target ${poolTotal} · ${daemon?.running ? "running" : "stopped"}`} />
+          sub={`${depleted} depleted · ${total} total`} />
+        <StatCard icon={<Key className="h-4 w-4" />} color="cyan"
+          title="JWT Tokens" value={String(tokenValid)}
+          sub={`${tokenNone} need refresh · ${total} total`} />
         <StatCard icon={<Activity className="h-4 w-4" />} color="violet"
           title={d.totalRequests} value={String(usage.total_requests)}
           sub={d.cumulative} />
@@ -113,9 +106,8 @@ export default function Dashboard() {
           sub={models.slice(0, 2).join(", ")} />
       </div>
 
-      {/* Middle row */}
+      {/* Account table */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Account status */}
         <div className="lg:col-span-2 rounded-xl border bg-card/30 overflow-hidden">
           <div className="px-4 py-3 border-b bg-muted/10 flex items-center justify-between">
             <span className="text-sm font-bold">{d.accountDetails}</span>
@@ -127,26 +119,33 @@ export default function Dashboard() {
                 <tr>
                   <th className="px-4 py-2 text-left">{d.name}</th>
                   <th className="px-3 py-2 text-left">{d.status}</th>
+                  {isTokenMode && <th className="px-3 py-2 text-left">JWT</th>}
                   <th className="px-3 py-2 text-right">Load</th>
                   <th className="px-3 py-2 text-right">{d.requests}</th>
                   <th className="px-3 py-2 text-right">{d.lastUsed}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {[...accStatus].sort((a,b) => {
-                  const score = (x: AccountStatus) => x.is_active && !(x as any).depleted ? 2 : 0
+                {[...accStatus].sort((a, b) => {
+                  const score = (x: AccountStatus) => x.is_active && !x.depleted ? 2 : 0
                   return score(b) - score(a)
                 }).map((a, i) => (
                   <tr key={i} className="hover:bg-muted/10">
                     <td className="px-4 py-2 font-mono">{a.name}</td>
                     <td className="px-3 py-2">
                       <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
-                        (a as any).depleted ? "bg-purple-500/15 text-purple-400" :
+                        a.temporarily_no_credits ? "bg-purple-500/15 text-purple-400" :
+                        a.depleted ? "bg-red-500/15 text-red-400" :
                         a.is_active ? "bg-emerald-500/15 text-emerald-400" :
-                        "bg-red-500/15 text-red-400"}`}>
-                        {(a as any).depleted ? "Depleted" : a.is_active ? d.normal : d.disabled}
+                        "bg-slate-500/15 text-slate-400"}`}>
+                        {a.temporarily_no_credits ? "No Credits" : a.depleted ? "Depleted" : a.is_active ? d.normal : d.disabled}
                       </span>
                     </td>
+                    {isTokenMode && (
+                      <td className="px-3 py-2">
+                        <TokenBadge status={a.token_status} expiresIn={a.token_expires_in} />
+                      </td>
+                    )}
                     <td className="px-3 py-2 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <span className={`font-mono text-xs font-semibold ${
@@ -174,44 +173,42 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Daemon + RAM */}
+        {/* Right column */}
         <div className="space-y-4">
-          <div className="rounded-xl border bg-card/30 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-bold">{d.sessionDaemon}</span>
-              <span className={`h-2 w-2 rounded-full ${daemon?.running ? "bg-emerald-500" : "bg-slate-500"}`} />
+          {/* Token mode info */}
+          {isTokenMode ? (
+            <div className="rounded-xl border bg-card/30 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold">Token Mode</span>
+                <span className="h-2 w-2 rounded-full bg-cyan-500" />
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-muted/20 rounded-lg p-2">
+                  <div className="text-muted-foreground mb-1">Valid JWT</div>
+                  <div className="font-bold text-lg text-cyan-400">{tokenValid}</div>
+                  <div className="text-muted-foreground">cached tokens</div>
+                </div>
+                <div className="bg-muted/20 rounded-lg p-2">
+                  <div className="text-muted-foreground mb-1">Need Refresh</div>
+                  <div className={`font-bold text-lg ${tokenNone > 0 ? "text-yellow-400" : "text-emerald-400"}`}>{tokenNone}</div>
+                  <div className="text-muted-foreground">on next use</div>
+                </div>
+              </div>
+              <div className="text-xs text-muted-foreground border-t pt-2">
+                Puppeteer only runs when a token needs refresh. Normal requests are pure HTTP.
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-muted/20 rounded-lg p-2">
-                <div className="text-muted-foreground mb-1">{d.pool}</div>
-                <div className="font-bold text-lg">{poolValid}</div>
-                <div className="text-muted-foreground">{d.sessionsReady}</div>
+          ) : (
+            <div className="rounded-xl border bg-card/30 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold">{d.sessionDaemon}</span>
+                <span className="h-2 w-2 rounded-full bg-orange-500" />
               </div>
-              <div className="bg-muted/20 rounded-lg p-2">
-                <div className="text-muted-foreground mb-1">{d.active}</div>
-                <div className="font-bold text-lg">{daemon?.accounts.filter(a => a.in_daemon).length ?? 0}</div>
-                <div className="text-muted-foreground">{d.browsersOpen}</div>
+              <div className="text-xs text-muted-foreground">
+                Legacy lazy mode active. Switch to token mode in Settings for lower RAM usage.
               </div>
             </div>
-            {daemon?.ram && (
-              <div className="text-xs space-y-1.5 pt-1 border-t">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">{d.chromiumRam}</span>
-                  <span className="font-mono">{daemon.ram.chromium_total_mb} MB ({daemon.ram.chromium_procs} procs)</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">{d.system}</span>
-                  <span className={`font-mono ${daemon.ram.system_used_pct > 80 ? "text-red-400" : daemon.ram.system_used_pct > 60 ? "text-yellow-400" : ""}`}>
-                    {daemon.ram.system_used_pct}% ({daemon.ram.system_used_mb} / {daemon.ram.system_total_mb} MB)
-                  </span>
-                </div>
-                <div className="w-full bg-muted/30 rounded-full h-1.5 mt-1">
-                  <div className={`h-1.5 rounded-full transition-all ${daemon.ram.system_used_pct > 80 ? "bg-red-500" : daemon.ram.system_used_pct > 60 ? "bg-yellow-500" : "bg-emerald-500"}`}
-                    style={{ width: `${daemon.ram.system_used_pct}%` }} />
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Request mini chart */}
           <div className="rounded-xl border bg-card/30 p-4">
@@ -251,9 +248,9 @@ export default function Dashboard() {
             {[
               { path: "POST /v1/chat/completions", tag: "Chat", color: "emerald" },
               { path: "POST /v1/messages", tag: "Anthropic", color: "violet" },
-              { path: "POST /v1/images/generations", tag: "Image", color: "blue" },
               { path: "GET /v1/models", tag: "Models", color: "slate" },
               { path: "GET /health", tag: d.healthCheck, color: "slate" },
+              { path: "GET /admin/", tag: "WebUI", color: "cyan" },
             ].map(e => (
               <div key={e.path} className="flex items-center justify-between px-3 py-2 bg-muted/20 rounded-lg">
                 <span className="font-mono">{e.path}</span>
@@ -267,6 +264,31 @@ export default function Dashboard() {
   )
 }
 
+function TokenBadge({ status, expiresIn }: { status?: string; expiresIn?: number }) {
+  if (status === "valid") {
+    const days = Math.floor((expiresIn || 0) / 86400)
+    return (
+      <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        {days}d
+      </span>
+    )
+  }
+  if (status === "expiring") {
+    const hours = Math.floor((expiresIn || 0) / 3600)
+    return (
+      <span className="flex items-center gap-1 text-yellow-400 font-semibold">
+        <Clock className="h-3 w-3" />
+        {hours}h
+      </span>
+    )
+  }
+  if (status === "expired") {
+    return <span className="text-red-400 font-semibold">expired</span>
+  }
+  return <span className="text-muted-foreground">—</span>
+}
+
 function StatCard({ icon, color, title, value, sub }: {
   icon: React.ReactNode; color: string; title: string; value: string; sub?: string
 }) {
@@ -275,6 +297,7 @@ function StatCard({ icon, color, title, value, sub }: {
     blue: "text-blue-400 bg-blue-500/10",
     violet: "text-violet-400 bg-violet-500/10",
     orange: "text-orange-400 bg-orange-500/10",
+    cyan: "text-cyan-400 bg-cyan-500/10",
   }
   return (
     <div className="rounded-xl border bg-card/30 p-4">

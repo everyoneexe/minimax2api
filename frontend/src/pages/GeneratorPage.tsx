@@ -387,9 +387,10 @@ export default function GeneratorPage() {
         </div>
       </div>
 
-      {/* Daemon */}
-      <div className="rounded-2xl border bg-card/40 p-5 space-y-4">
-        <div className="flex items-center justify-between">
+      {/* Daemon — sadece lazy modda göster */}
+      {lazyMode ? (
+        <div className="rounded-2xl border bg-card/40 p-5 space-y-4">
+          <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">{g.daemonTitle}</h3>
           <div className="flex items-center gap-3 flex-wrap">
             <span className={`h-2 w-2 rounded-full ${daemon?.running ? "bg-emerald-500" : "bg-slate-500"}`} />
@@ -508,8 +509,20 @@ export default function GeneratorPage() {
               <div ref={daemonLogEndRef} />
             </div>
           </div>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="rounded-2xl border bg-card/40 p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">Token Mode Active</h3>
+            <span className="h-2 w-2 rounded-full bg-cyan-500" />
+          </div>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>Accounts generated here are automatically added to config.json with <code className="bg-muted/40 px-1 rounded">auth_mode: token</code>.</p>
+            <p>On first use, Puppeteer logs in once to extract the JWT token. All subsequent requests are pure HTTP — no persistent browser needed.</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -21,6 +21,7 @@ type AccountItem = {
 
 type AccountStatus = {
   name: string
+  email: string
   is_active: boolean
   request_count: number
   last_used: number
@@ -28,6 +29,10 @@ type AccountStatus = {
   api_key_preview: string
   max_concurrent?: number
   current_concurrent?: number
+  token_status?: "valid" | "expiring" | "expired" | "none"
+  token_expires?: number
+  token_expires_in?: number
+  agent_id?: string
 }
 
 type FilterState = "all" | "active" | "disabled"
@@ -307,6 +312,7 @@ export default function AccountsPage() {
                 <th className="px-4 py-3 text-left font-semibold">{a.name}</th>
                 <th className="px-4 py-3 text-left font-semibold">{a.status}</th>
                 <th className="px-4 py-3 text-left font-semibold">{a.auth}</th>
+                <th className="px-4 py-3 text-left font-semibold">JWT</th>
                 <th className="px-4 py-3 text-right font-semibold">Load</th>
                 <th className="px-4 py-3 text-right font-semibold">{a.requests || "Requests"}</th>
                 <th className="px-4 py-3 text-right font-semibold">{a.lastUsed}</th>
@@ -338,6 +344,22 @@ export default function AccountsPage() {
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ring-1 ${badge.cls}`}>{badge.label}</span>
                     </td>
                     <td className="px-4 py-3 text-xs font-mono">{acc.auth_mode === "token" ? c.tokenAuth : c.apiKeyAuth}</td>
+                    <td className="px-4 py-3 text-xs">
+                      {(() => {
+                        const ts = (s as any).token_status
+                        const expiresIn = (s as any).token_expires_in || 0
+                        if (ts === "valid") {
+                          const days = Math.floor(expiresIn / 86400)
+                          return <span className="flex items-center gap-1 text-emerald-400 font-semibold"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />{days}d</span>
+                        }
+                        if (ts === "expiring") {
+                          const hours = Math.floor(expiresIn / 3600)
+                          return <span className="text-yellow-400 font-semibold">⚠ {hours}h</span>
+                        }
+                        if (ts === "expired") return <span className="text-red-400 font-semibold">expired</span>
+                        return <span className="text-muted-foreground">—</span>
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <span className={`font-mono text-xs font-semibold ${
@@ -374,7 +396,7 @@ export default function AccountsPage() {
                   </tr>
                   {isSelected && (
                     <tr key={`detail-${i}`} className="bg-muted/10">
-                      <td colSpan={8} className="px-6 py-4">
+                      <td colSpan={9} className="px-6 py-4">
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                           <div>
                             <div className="text-muted-foreground mb-1 font-semibold uppercase tracking-wide">Name</div>
@@ -393,6 +415,22 @@ export default function AccountsPage() {
                             <div className={`font-semibold ${s.is_active ? "text-emerald-500" : "text-red-500"}`}>
                               {s.is_active ? "Active" : "Disabled"}
                             </div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground mb-1 font-semibold uppercase tracking-wide">JWT Status</div>
+                            <div className={`font-semibold ${
+                              (s as any).token_status === "valid" ? "text-emerald-500" :
+                              (s as any).token_status === "expiring" ? "text-yellow-500" :
+                              (s as any).token_status === "expired" ? "text-red-500" : "text-muted-foreground"
+                            }`}>
+                              {(s as any).token_status === "valid" ? `Valid (${Math.floor(((s as any).token_expires_in || 0) / 86400)}d left)` :
+                               (s as any).token_status === "expiring" ? `Expiring (${Math.floor(((s as any).token_expires_in || 0) / 3600)}h left)` :
+                               (s as any).token_status === "expired" ? "Expired" : "Not cached yet"}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-muted-foreground mb-1 font-semibold uppercase tracking-wide">Agent ID</div>
+                            <div className="font-mono text-muted-foreground">{(s as any).agent_id || "—"}</div>
                           </div>
                           <div>
                             <div className="text-muted-foreground mb-1 font-semibold uppercase tracking-wide">Requests</div>
