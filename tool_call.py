@@ -9,62 +9,12 @@ import uuid
 
 
 def tools_to_system_prompt(tools: list) -> str:
-    """Inject tool definitions with explicit JSON call format."""
-    if not tools:
-        return ""
-
-    tool_names = [t.get("function", {}).get("name", "") for t in tools if t.get("type") == "function"]
-
-    lines = [
-        "TOOL CALLING INSTRUCTIONS:",
-        "When you need to call a tool, output ONLY a JSON object on its own line:",
-        '{"name":"TOOL_NAME","arguments":{"param":"value"}}',
-        "",
-        f"Available tools: {', '.join(tool_names)}",
-        "",
-    ]
-
-    for tool in tools:
-        if tool.get("type") != "function":
-            continue
-        fn = tool.get("function", {})
-        name = fn.get("name", "")
-        desc = fn.get("description", "")
-        params = fn.get("parameters", {})
-        props = params.get("properties", {})
-        required = params.get("required", [])
-        lines.append(f"{name}: {desc[:120]}")
-        for pname, pinfo in list(props.items())[:5]:
-            req = "*" if pname in required else ""
-            lines.append(f"  {pname}{req}: {pinfo.get('description','')[:80]}")
-        lines.append("")
-
-    return "\n".join(lines)
+    """No injection needed — native tool_call works."""
+    return ""
 
 
 def inject_tools_into_messages(messages: list, tools: list) -> list:
-    """Inject tools definition — append to last user message for visibility."""
-    if not tools:
-        return messages
-
-    tools_prompt = tools_to_system_prompt(tools)
-    if not tools_prompt:
-        return messages
-
-    messages = list(messages)
-
-    # Append to last user message so model sees it right before responding
-    for i in range(len(messages) - 1, -1, -1):
-        if messages[i].get("role") == "user":
-            content = messages[i].get("content", "")
-            if isinstance(content, str):
-                messages[i] = {**messages[i], "content": content + "\n\n---\n" + tools_prompt}
-            elif isinstance(content, list):
-                messages[i] = {**messages[i], "content": content + [{"type": "text", "text": "\n\n---\n" + tools_prompt}]}
-            return messages
-
-    # Fallback: prepend as system message
-    messages.insert(0, {"role": "system", "content": tools_prompt})
+    """No injection needed — tools passed natively via OpenAI tools array."""
     return messages
 
 
