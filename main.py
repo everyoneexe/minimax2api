@@ -48,7 +48,7 @@ if _env.exists():
             os.environ[k] = v
 
 STATIC = Path(__file__).parent / "static"
-ADMIN_STATIC = Path(__file__).parent / "admin_static"
+ADMIN_STATIC = STATIC  # same build output
 
 
 # ── lifespan ────────────────────────────────────────────────────
@@ -166,8 +166,6 @@ app.include_router(_admin_routes.router)
 # ── static files ────────────────────────────────────────────────
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=str(STATIC)), name="static")
-if ADMIN_STATIC.exists():
-    app.mount("/admin/static", StaticFiles(directory=str(ADMIN_STATIC)), name="admin_static")
 
 
 @app.get("/")

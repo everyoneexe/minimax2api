@@ -65,7 +65,15 @@ async def _track_concurrent(email: str):
 # ── Account helpers ──────────────────────────────────────────────
 
 def _get_creds(acct: Account) -> tuple:
-    return "", "", acct.cookie
+    """Return (jwt_token, user_id, cookie, device_id, uuid_val, agent_id)."""
+    if acct.email and acct.password:
+        try:
+            from minimax_adapter.http_login import get_or_refresh_token
+            token, user_id, device_id, uuid_val, agent_id, cookies = get_or_refresh_token(acct)
+            return token, user_id, cookies, device_id, uuid_val, agent_id
+        except Exception as e:
+            logger.warning("Token extraction failed for %s: %s", acct.email, e)
+    return "", "", acct.cookie, "62532107", "6cafb2f8-5868-4755-a50b-c54f9a7edc4a", ""
 
 
 def _pick_account() -> Optional[Account]:
@@ -182,7 +190,7 @@ async def proxy_chat(model: str, messages: list, params: dict, proxy_key: str) -
         })
 
     resolved_model = resolve_model(model)
-    jwt_token, user_id, cookie = _get_creds(acct)
+    jwt_token, user_id, cookie, device_id, uuid_val, agent_id = _get_creds(acct)
     account_email = acct.email
     tools = params.get("tools")
     user_agent = params.get("_user_agent", "")
@@ -194,7 +202,7 @@ async def proxy_chat(model: str, messages: list, params: dict, proxy_key: str) -
 
     async with _track_concurrent(account_email):
         try:
-            result = await web_agent_chat(resolved_model, messages, jwt_token, user_id, cookie=cookie, tools=tools, account_email=account_email)
+            result = await web_agent_chat(resolved_model, messages, jwt_token, user_id, cookie=cookie, tools=tools, account_email=account_email, device_id=device_id, uuid_val=uuid_val, agent_id=agent_id)
             logger.debug("RESPONSE body: %s", json.dumps(result))
             _mark_used(acct)
             usage_tracker.record(proxy_key, resolved_model, 0, 0)
@@ -227,7 +235,7 @@ async def proxy_chat_stream(
         yield "data: [DONE]\n\n"
         return
 
-    jwt_token, user_id, cookie = _get_creds(acct)
+    jwt_token, user_id, cookie, device_id, uuid_val, agent_id = _get_creds(acct)
     account_email = acct.email
     resolved_model = resolve_model(model)
     tools = params.get("tools")
@@ -240,7 +248,7 @@ async def proxy_chat_stream(
 
     async with _track_concurrent(account_email):
         try:
-            async for chunk in web_agent_chat_stream(resolved_model, messages, jwt_token, user_id, cookie=cookie, tools=tools, account_email=account_email):
+            async for chunk in web_agent_chat_stream(resolved_model, messages, jwt_token, user_id, cookie=cookie, tools=tools, account_email=account_email, device_id=device_id, uuid_val=uuid_val, agent_id=agent_id):
                 yield chunk
             _mark_used(acct)
             usage_tracker.record(proxy_key, resolved_model, 0, 0)
@@ -281,7 +289,7 @@ async def _test_account(acct: Account) -> dict:
     from minimax_adapter.session import stream_message
     import time as _time
 
-    jwt_token, user_id, cookie = _get_creds(acct)
+    jwt_token, user_id, cookie, device_id, uuid_val, agent_id = _get_creds(acct)
 
     # Token yoksa pool'dan session al
     if not jwt_token:

@@ -51,6 +51,12 @@ class Account:
     credits_check_after: float = 0.0  # Timestamp when to retry temporary credit exhaustion (24h cooldown)
     max_concurrent: int = 5  # Max concurrent requests per account (5 req/account)
     # Note: Runtime concurrency tracking is handled by _account_concurrent dict in proxy.py, not persisted here
+    saved_token: str = ""        # JWT token (token mode)
+    token_expires: float = 0.0   # JWT expiry timestamp
+    agent_id: str = ""           # Per-user agent_id (token mode)
+    user_id: str = ""            # MiniMax user_id (token mode)
+    saved_cookies: dict = field(default_factory=dict)
+    cookies_expires: float = 0.0
 
     def to_dict(self) -> dict:
         return {
@@ -67,6 +73,12 @@ class Account:
             "temporarily_no_credits": self.temporarily_no_credits,
             "credits_check_after": self.credits_check_after,
             "max_concurrent": self.max_concurrent,
+            "saved_token": self.saved_token,
+            "token_expires": self.token_expires,
+            "agent_id": self.agent_id,
+            "user_id": self.user_id,
+            "saved_cookies": self.saved_cookies,
+            "cookies_expires": self.cookies_expires,
         }
 
 
@@ -99,7 +111,7 @@ class Config:
     webui_password: str = "minimax"
     accounts: List[dict] = field(default_factory=list)
     register_proxy: str = ""
-    lazy_session: bool = True  # Lazy mode enabled by default (browser-based sessions)
+    lazy_session: bool = False  # Token mode by default (HTTP-only after initial JWT extraction)
     account_pool_target: int = 0  # 0 = disabled, >0 = auto-replenish when active accounts drop below this
     max_concurrent_requests: int = 100  # Global max: 20 accounts × 5 concurrent = 100 max capacity
 
@@ -178,7 +190,13 @@ class ConfigManager:
                 acc.setdefault("temporarily_no_credits", False)
                 acc.setdefault("credits_check_after", 0.0)
                 acc.setdefault("depleted", False)
-                acc.setdefault("max_concurrent", 5)  # Default 5 per account
+                acc.setdefault("max_concurrent", 5)
+                acc.setdefault("saved_token", "")
+                acc.setdefault("token_expires", 0.0)
+                acc.setdefault("agent_id", "")
+                acc.setdefault("user_id", "")
+                acc.setdefault("saved_cookies", {})
+                acc.setdefault("cookies_expires", 0.0)
 
             self.config = Config(
                 proxy_api_keys=data.get("proxy_api_keys", ["sk-default"]),

@@ -145,6 +145,9 @@ async def web_agent_chat(
     cookie: str = "",
     tools: list = None,
     account_email: str = "",
+    device_id: str = "62532107",
+    uuid_val: str = "6cafb2f8-5868-4755-a50b-c54f9a7edc4a",
+    agent_id: str = "",
 ) -> dict:
     """Non-streaming chat. Returns OpenAI-compatible response dict.
 
@@ -240,11 +243,13 @@ async def web_agent_chat(
         session_id, jwt_token, user_id, pool_device_id, pool_uuid, session_email = pooled
         logger.info("Session retrieved from pool: %s (owner: %s)", session_id, session_email or "?")
         account_email = session_email or account_email
+        pool_agent_id = agent_id
     else:
         logger.info("Pool empty, creating new session...")
-        pool_device_id = "62532107"
-        pool_uuid = "6cafb2f8-5868-4755-a50b-c54f9a7edc4a"
-        session_id = await create_session(jwt_token, user_id, model, cookie=cookie)
+        pool_device_id = device_id
+        pool_uuid = uuid_val
+        pool_agent_id = agent_id
+        session_id = await create_session(jwt_token, user_id, model, agent_id=pool_agent_id or "404574372720710", cookie=cookie, device_id=pool_device_id, uuid_val=pool_uuid)
 
     usage_data = {}
 
@@ -329,6 +334,9 @@ async def web_agent_chat_stream(
     cookie: str = "",
     tools: list = None,
     account_email: str = "",
+    device_id: str = "62532107",
+    uuid_val: str = "6cafb2f8-5868-4755-a50b-c54f9a7edc4a",
+    agent_id: str = "",
 ) -> AsyncGenerator[str, None]:
     """Streaming chat. Yields OpenAI-compatible SSE chunks.
 
@@ -409,15 +417,17 @@ async def web_agent_chat_stream(
         session_id, jwt_token, user_id, pool_device_id, pool_uuid, session_email = pooled
         logger.info("Session retrieved from pool: %s (owner: %s)", session_id, session_email or "?")
         account_email = session_email or account_email
+        pool_agent_id = agent_id
     else:
         logger.info("Pool empty, creating new session...")
-        pool_device_id = "62532107"
-        pool_uuid = "6cafb2f8-5868-4755-a50b-c54f9a7edc4a"
+        pool_device_id = device_id
+        pool_uuid = uuid_val
+        pool_agent_id = agent_id
         session_id = None
 
     try:
         if session_id is None:
-            session_id = await create_session(jwt_token, user_id, model, cookie=cookie)
+            session_id = await create_session(jwt_token, user_id, model, agent_id=pool_agent_id or "404574372720710", cookie=cookie, device_id=pool_device_id, uuid_val=pool_uuid)
         sent_role = False
         full_content = ""
 

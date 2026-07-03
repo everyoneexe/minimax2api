@@ -21,6 +21,8 @@ async def create_session(
     agent_id: str = DEFAULT_AGENT_ID,
     cookie: str = "",
     proxy: str = "",
+    device_id: str = "62532107",
+    uuid_val: str = "6cafb2f8-5868-4755-a50b-c54f9a7edc4a",
 ) -> str:
     """Create a new chat session and return session_id.
 
@@ -44,25 +46,18 @@ async def create_session(
 
     ts_s = unix_timestamp()
     ts_ms = ts_s * 1000
-    device_id = "62532107"
 
-    # Build model object with correct format
-    # Only MiniMax-M3 (no thinking) → variant: ""
-    # All others → variant: "thinking"
     model_id = model.replace("-thinking", "") if "thinking" in model else model
     variant = "" if model == "MiniMax-M3" else "thinking"
 
     body = {
-        "model": {
-            "provider_id": "minimax",
-            "model_id": model_id,
-            "variant": variant
-        }
+        "team_mode_off": True,
+        "model": f"minimax/{model_id}",
     }
     body_str = json.dumps(body, separators=(",", ":"))
 
     path = f"/archon/api/v1/agent/{agent_id}/session"
-    url = f"{AGENT_BASE_URL}{build_url(path, jwt_token, user_id, device_id, ts_ms)}"
+    url = f"{AGENT_BASE_URL}{build_url(path, jwt_token, user_id, device_id, ts_ms, uuid_val)}"
 
     headers = build_signed_headers(jwt_token, url, body_str, ts_s)
     headers["Sec-Fetch-Dest"] = "empty"
