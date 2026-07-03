@@ -35,6 +35,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger("minimax2api")
 
+# Debug log — full request/response bodies to file
+_debug_log = Path(__file__).parent / "debug.log"
+_debug_handler = logging.FileHandler(_debug_log, encoding="utf-8")
+_debug_handler.setLevel(logging.DEBUG)
+_debug_handler.setFormatter(logging.Formatter("%(asctime)s\n%(message)s\n" + "-"*80))
+logging.getLogger("minimax2api.debug").addHandler(_debug_handler)
+logging.getLogger("minimax2api.debug").setLevel(logging.DEBUG)
+
 # ── load .env ───────────────────────────────────────────────────
 _env = Path(__file__).parent / ".env"
 if _env.exists():

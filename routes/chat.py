@@ -1,5 +1,6 @@
 """OpenAI and Anthropic compatible chat routes."""
 import json
+import logging
 import re
 import time
 import uuid
@@ -14,6 +15,7 @@ from models import ChatCompletionRequest
 from proxy import proxy_chat, proxy_chat_stream, fetch_models
 
 router = APIRouter()
+debug_logger = logging.getLogger("minimax2api.debug")
 
 
 # ── OpenAI-compatible ────────────────────────────────────────────
@@ -30,9 +32,21 @@ async def chat_completions(
     params["_user_agent"] = user_agent or ""
     messages = [m.model_dump(exclude_none=True) for m in request.messages]
 
+    debug_logger.info("=== REQUEST ===\nUA: %s\nModel: %s\nStream: %s\nMessages: %s\nTools: %s",
+        user_agent, request.model, request.stream,
+        json.dumps(messages, ensure_ascii=False),
+        json.dumps(params.get("tools"), ensure_ascii=False))
+
     if request.stream:
+        async def logged_stream():
+            chunks = []
+            async for chunk in proxy_chat_stream(request.model, messages, params, proxy_key):
+                chunks.append(chunk)
+                yield chunk
+            debug_logger.info("=== STREAM RESPONSE ===\n%s", "".join(chunks)[:5000])
+
         return StreamingResponse(
-            proxy_chat_stream(request.model, messages, params, proxy_key),
+            logged_stream(),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -42,6 +56,7 @@ async def chat_completions(
         )
 
     result = await proxy_chat(request.model, messages, params, proxy_key)
+    debug_logger.info("=== RESPONSE ===\n%s", json.dumps(result, ensure_ascii=False)[:5000])
     return JSONResponse(result)
 
 

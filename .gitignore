@@ -48,3 +48,4 @@ Thumbs.db
 
 # Unused development files (contains old credentials)
 generator/unused/
+debug.log
