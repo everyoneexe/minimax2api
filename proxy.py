@@ -195,10 +195,13 @@ async def proxy_chat(model: str, messages: list, params: dict, proxy_key: str) -
     tools = params.get("tools")
     user_agent = params.get("_user_agent", "")
 
-    # Thinking models don't support tool_calls — downgrade when tools present
-    if tools and "thinking" in resolved_model.lower():
-        resolved_model = resolved_model.replace("-thinking", "")
-        logger.debug("Downgraded thinking model to %s for tool_call support", resolved_model)
+    # Thinking models and M3 don't support tool_calls well — use M2.7
+    if tools:
+        if "thinking" in resolved_model.lower():
+            resolved_model = resolved_model.replace("-thinking", "")
+        if resolved_model in ("MiniMax-M3", "MiniMax-M3-thinking"):
+            resolved_model = "MiniMax-M2.7"
+        logger.debug("Model for tool_call: %s", resolved_model)
 
     logger.debug("REQUEST body: model=%s ua=%s tools=%s", resolved_model, user_agent, json.dumps(tools))
 
@@ -243,10 +246,13 @@ async def proxy_chat_stream(
     tools = params.get("tools")
     user_agent = params.get("_user_agent", "")
 
-    # Thinking models don't support tool_calls — downgrade when tools present
-    if tools and "thinking" in resolved_model.lower():
-        resolved_model = resolved_model.replace("-thinking", "")
-        logger.debug("Downgraded thinking model to %s for tool_call support", resolved_model)
+    # Thinking models and M3 don't support tool_calls well — use M2.7
+    if tools:
+        if "thinking" in resolved_model.lower():
+            resolved_model = resolved_model.replace("-thinking", "")
+        if resolved_model in ("MiniMax-M3", "MiniMax-M3-thinking"):
+            resolved_model = "MiniMax-M2.7"
+        logger.debug("Model for tool_call: %s", resolved_model)
 
     logger.debug("STREAM REQUEST: model=%s ua=%s tools=%s", resolved_model, user_agent, json.dumps(tools))
 
