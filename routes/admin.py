@@ -42,6 +42,16 @@ async def get_config():
 async def update_config(req: Request):
     try:
         data = await req.json()
+        # *** masked values geri yazılmasın — mevcut config'den koru
+        if "accounts" in data:
+            existing = {a.get("email"): a for a in config_manager.config.accounts}
+            for a in data["accounts"]:
+                email = a.get("email", "")
+                orig = existing.get(email, {})
+                if a.get("password") == "***":
+                    a["password"] = orig.get("password", "")
+                if a.get("cookie") == "***":
+                    a["cookie"] = orig.get("cookie", "")
         config_manager.update_config(data)
         return JSONResponse({"status": "ok"})
     except Exception as e:
