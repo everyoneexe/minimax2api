@@ -94,7 +94,7 @@ def clean_deliver_assets(content: str) -> str:
     return _re.sub(r'<deliver-assets>.*?</deliver-assets>', replace_block, content, flags=_re.DOTALL)
 
 
-def messages_to_content(messages: list) -> str:
+def messages_to_content(messages: list, has_tools: bool = False) -> str:
     """Convert OpenAI messages list to a single content string.
 
     Args:
@@ -121,16 +121,25 @@ def messages_to_content(messages: list) -> str:
         else:
             parts.append(f"{m['role']}: {content}")
 
-    # Disable only media generation tools — keep text/code capabilities intact
-    NO_TOOLS = (
-        "SYSTEM: Image generation, video generation, and media file creation tools are disabled in this session. "
-        "If asked to generate an image or video, respond with text only and explain you cannot create media. "
-        "All other capabilities including coding, analysis, and writing are fully available."
-    )
-    system_text = f"{NO_TOOLS}\n\n{system_text}" if system_text else NO_TOOLS
+    # Disable only MiniMax built-in media tools — user-defined function tools still work
+    # Disable MiniMax built-in media tools only when no user tools are defined
+    if not has_tools:
+        NO_MEDIA_TOOLS = (
+            "SYSTEM: Built-in image generation and video generation are disabled. "
+            "Do not generate images or videos. If asked, say you cannot create media."
+        )
+        system_text = f"{NO_MEDIA_TOOLS}\n\n{system_text}" if system_text else NO_MEDIA_TOOLS
 
     # Simple single-message case
-    if len(parts) == 1:
+    if len(parts) == 1 and not system_text:
+        last = messages[-1] if messages else {}
+        c = last.get("content", "")
+        return c if isinstance(c, str) else "\n".join(
+            p.get("text", "") for p in c if p.get("type") == "text"
+        )
+
+    # Simple single-message with system
+    if len(parts) == 1 and system_text:
         last = messages[-1] if messages else {}
         c = last.get("content", "")
         user_content = c if isinstance(c, str) else "\n".join(
@@ -140,8 +149,6 @@ def messages_to_content(messages: list) -> str:
 
     # Multi-turn conversation format
     result_parts = [f"[System: {system_text}]"]
-    result_parts.extend(parts)
-    return "\n".join(result_parts) or "hi"
     result_parts.extend(parts)
     return "\n".join(result_parts) or "hi"
 
@@ -208,7 +215,7 @@ async def web_agent_chat(
     if tools:
         messages = inject_tools_into_messages(messages, tools)
 
-    content = messages_to_content(messages)
+    content = messages_to_content(messages, has_tools=bool(tools))
     final_content = ""
     final_thinking = ""
 
@@ -399,7 +406,7 @@ async def web_agent_chat_stream(
     if tools:
         messages = inject_tools_into_messages(messages, tools)
 
-    content = messages_to_content(messages)
+    content = messages_to_content(messages, has_tools=bool(tools))
 
     # Lazy mode: Puppeteer on-demand session
     from config import config_manager as _cm
