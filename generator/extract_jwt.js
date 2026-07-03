@@ -82,7 +82,7 @@ async function extractJWT(email, password) {
     await page.keyboard.press('Enter');
 
     // Token yakalanana kadar bekle
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 60; i++) {
       if (result) break;
       await sleep(500);
     }

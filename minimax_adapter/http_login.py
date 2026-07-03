@@ -25,7 +25,7 @@ def extract_jwt(email: str, password: str, timeout: int = 90) -> dict:
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd=str(EXTRACT_SCRIPT.parent),
+            cwd=str(EXTRACT_SCRIPT.parent.parent),  # proje kök dizini
         )
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"JWT extraction timed out after {timeout}s")
