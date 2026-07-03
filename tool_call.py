@@ -9,31 +9,8 @@ import uuid
 
 
 def tools_to_system_prompt(tools: list) -> str:
-    """Inject tool definitions as context — no format examples to avoid confusion."""
-    if not tools:
-        return ""
-
-    lines = [
-        "You have access to the following tools. Use them via the native tool calling mechanism.",
-        "",
-    ]
-
-    for tool in tools:
-        if tool.get("type") != "function":
-            continue
-        fn = tool.get("function", {})
-        name = fn.get("name", "")
-        desc = fn.get("description", "")
-        params = fn.get("parameters", {})
-        props = params.get("properties", {})
-        required = params.get("required", [])
-
-        lines.append(f"- **{name}**: {desc[:150]}")
-        for pname, pinfo in list(props.items())[:4]:
-            req = " (required)" if pname in required else ""
-            lines.append(f"  - {pname}{req}: {pinfo.get('description', '')[:80]}")
-
-    return "\n".join(lines)
+    """Do not inject anything — native tool_call handles tool definitions."""
+    return ""
 
 
 def inject_tools_into_messages(messages: list, tools: list) -> list:

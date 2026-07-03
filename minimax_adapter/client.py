@@ -122,7 +122,8 @@ def messages_to_content(messages: list, has_tools: bool = False) -> str:
             parts.append(f"{m['role']}: {content}")
 
     # Disable only MiniMax built-in media tools — user-defined function tools still work
-    # Disable MiniMax built-in media tools only when no user tools are defined
+    # Only inject media restriction when no user tools present
+    # When tools are present, keep message clean — model uses native tool_call
     if not has_tools:
         NO_MEDIA_TOOLS = (
             "SYSTEM: Built-in image generation and video generation are disabled. "
