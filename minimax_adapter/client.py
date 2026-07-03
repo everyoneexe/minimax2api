@@ -122,8 +122,7 @@ def messages_to_content(messages: list, has_tools: bool = False) -> str:
             parts.append(f"{m['role']}: {content}")
 
     # Disable only MiniMax built-in media tools — user-defined function tools still work
-    # Only inject media restriction when no user tools present
-    # When tools are present, keep message clean — model uses native tool_call
+    # Disable MiniMax built-in media tools only when no user tools are defined
     if not has_tools:
         NO_MEDIA_TOOLS = (
             "SYSTEM: Built-in image generation and video generation are disabled. "
@@ -477,6 +476,17 @@ async def web_agent_chat_stream(
 
         async for event in stream_message(session_id, jwt_token, user_id, content, model, cookie=cookie, device_id=pool_device_id, uuid_val=pool_uuid):
             etype = event.get("type")
+
+            # Native OpenAI format chunk (tool_calls, finish_reason etc.) — pass through
+            if "choices" in event:
+                import json as _json
+                yield f"data: {_json.dumps(event, ensure_ascii=False)}\n\n"
+                # Check if this is a final chunk
+                fr = event.get("choices", [{}])[0].get("finish_reason")
+                if fr in ("tool_calls", "stop", "length"):
+                    yield "data: [DONE]\n\n"
+                    return
+                continue
 
             if etype == 6:
                 chunk = event.get("agent_message_chunk", {})

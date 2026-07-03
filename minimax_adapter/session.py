@@ -191,6 +191,10 @@ async def stream_message(
                     continue
                 try:
                     event = json.loads(raw)
+                    # Native OpenAI format (tool_calls etc.) — pass through directly
+                    if "choices" in event:
+                        yield event
+                        continue
                     # Check for quota/limit errors
                     err_msg = ""
                     if event.get("base_resp", {}).get("status_code") not in (0, None):
@@ -240,6 +244,10 @@ async def stream_message(
                     continue
                 try:
                     event = json.loads(raw)
+                    # Native OpenAI format (tool_calls etc.) — pass through directly
+                    if "choices" in event:
+                        yield event
+                        continue
                     # Check for quota/limit errors
                     err_msg = ""
                     if event.get("base_resp", {}).get("status_code") not in (0, None):
