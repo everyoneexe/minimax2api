@@ -69,6 +69,31 @@ async def resolve_asset_urls(
     return content
 
 
+def clean_deliver_assets(content: str) -> str:
+    """Convert <deliver-assets><media src="..."> tags to markdown images/links."""
+    import re as _re
+    if not content or "deliver-assets" not in content:
+        return content
+
+    def replace_block(m: _re.Match) -> str:
+        block = m.group(0)
+        media_tags = _re.findall(r'<media\s+src="([^"]+)"[^/]*/>', block)
+        if not media_tags:
+            return ""
+        parts = []
+        for url in media_tags:
+            name_match = _re.search(r'name="([^"]+)"', block)
+            name = name_match.group(1) if name_match else "image"
+            ext = url.split("?")[0].split(".")[-1].lower()
+            if ext in ("png", "jpg", "jpeg", "webp", "gif"):
+                parts.append(f"![{name}]({url})")
+            else:
+                parts.append(f"[{name}]({url})")
+        return "\n".join(parts)
+
+    return _re.sub(r'<deliver-assets>.*?</deliver-assets>', replace_block, content, flags=_re.DOTALL)
+
+
 def messages_to_content(messages: list) -> str:
     """Convert OpenAI messages list to a single content string.
 
@@ -211,6 +236,7 @@ async def web_agent_chat(
         # Resolve asset URLs (only if we have credentials)
         if "commit-id-" in final_content and jwt_token:
             final_content = await resolve_asset_urls(final_content, jwt_token, user_id, "62532107")
+        final_content = clean_deliver_assets(final_content)
 
         choice: dict = {
             "index": 0,
@@ -289,6 +315,7 @@ async def web_agent_chat(
     # Resolve asset URLs (commit-id → download URL)
     if "commit-id-" in final_content:
         final_content = await resolve_asset_urls(final_content, jwt_token, user_id, pool_device_id)
+    final_content = clean_deliver_assets(final_content)
 
     choice: dict = {
         "index": 0,
@@ -390,6 +417,7 @@ async def web_agent_chat_stream(
             # Resolve asset URLs (only if we have credentials)
             if "commit-id-" in final_content and jwt_token:
                 final_content = await resolve_asset_urls(final_content, jwt_token, user_id, "62532107")
+            final_content = clean_deliver_assets(final_content)
 
             # Check for tool calls
             if tools and has_tool_calls(final_content):
@@ -451,6 +479,7 @@ async def web_agent_chat_stream(
                     # Resolve asset URLs if present
                     if "commit-id-" in full_content and jwt_token:
                         full_content = await resolve_asset_urls(full_content, jwt_token, user_id, pool_device_id)
+                    full_content = clean_deliver_assets(full_content)
                     # Tool call parsing
                     if tools and has_tool_calls(full_content):
                         tool_calls = parse_tool_calls(full_content)
