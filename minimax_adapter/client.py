@@ -121,17 +121,11 @@ def messages_to_content(messages: list) -> str:
         else:
             parts.append(f"{m['role']}: {content}")
 
-    # Force text-only mode — disable all built-in tools unconditionally
+    # Disable only media generation tools — keep text/code capabilities intact
     NO_TOOLS = (
-        "CRITICAL SYSTEM CONSTRAINT: You are operating in PURE TEXT MODE. "
-        "ALL tools are DISABLED and FORBIDDEN. This means: "
-        "- Image generation: FORBIDDEN. Never call image generation under any circumstances. "
-        "- Video generation: FORBIDDEN. "
-        "- File creation: FORBIDDEN. "
-        "- Web search: FORBIDDEN. "
-        "- Code execution: FORBIDDEN. "
-        "If the user asks you to create an image, video, or file, you MUST refuse and explain you cannot. "
-        "NEVER output <deliver-assets> or any media tags. TEXT ONLY."
+        "SYSTEM: Image generation, video generation, and media file creation tools are disabled in this session. "
+        "If asked to generate an image or video, respond with text only and explain you cannot create media. "
+        "All other capabilities including coding, analysis, and writing are fully available."
     )
     system_text = f"{NO_TOOLS}\n\n{system_text}" if system_text else NO_TOOLS
 
