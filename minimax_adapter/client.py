@@ -477,23 +477,29 @@ async def web_agent_chat_stream(
         async for event in stream_message(session_id, jwt_token, user_id, content, model, cookie=cookie, device_id=pool_device_id, uuid_val=pool_uuid):
             etype = event.get("type")
 
-            # Native OpenAI format chunk — buffer stop, pass tool_calls immediately
+            # Native OpenAI format chunk — handle tool_calls passthrough
             if "choices" in event:
                 import json as _json
                 fr = event.get("choices", [{}])[0].get("finish_reason")
                 delta = event.get("choices", [{}])[0].get("delta", {})
-                if fr == "stop" and not delta:
-                    # Don't yield stop yet — more chunks may follow (tool_calls)
-                    continue
-                if fr == "tool_calls" or delta.get("tool_calls"):
+
+                if delta.get("tool_calls"):
+                    # Native tool_call data — pass through
+                    if not sent_role:
+                        yield sse_chunk(session_id, model, {"role": "assistant"})
+                        sent_role = True
                     yield f"data: {_json.dumps(event, ensure_ascii=False)}\n\n"
                     if fr == "tool_calls":
                         yield "data: [DONE]\n\n"
                         return
                     continue
-                # Other content chunks — pass through
-                if delta.get("content") or delta.get("role"):
+
+                if fr == "tool_calls":
                     yield f"data: {_json.dumps(event, ensure_ascii=False)}\n\n"
+                    yield "data: [DONE]\n\n"
+                    return
+
+                # skip stop and content chunks in native format — handled by type 6
                 continue
 
             if etype == 6:
