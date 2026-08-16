@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import uuid
 from typing import AsyncGenerator, Optional
 from pathlib import Path
 
@@ -18,6 +19,36 @@ logger = logging.getLogger("minimax2api.adapter.client")
 AGENT_BASE_URL = "https://agent.minimax.io"
 DEFAULT_MODEL = "MiniMax-M2.7"
 _LAZY_SERVER_PORT = int(os.environ.get("LAZY_PORT", "5005"))
+
+# Cache of discovered agent_ids keyed by user_id (avoids re-discovery per request)
+_agent_id_cache: dict = {}
+
+
+async def _resolve_agent_id(jwt_token: str, user_id: str, device_id: str, uuid_val: str) -> str:
+    """Return this account's own agent_id, discovering + caching it if needed.
+
+    Persists the discovered id back onto the matching config account so it
+    survives restarts.
+    """
+    if not user_id:
+        return ""
+    if user_id in _agent_id_cache:
+        return _agent_id_cache[user_id]
+    from .session import discover_agent_id
+    aid = await discover_agent_id(jwt_token, user_id, device_id=device_id, uuid_val=uuid_val)
+    if aid:
+        _agent_id_cache[user_id] = aid
+        # Persist to config so future runs skip discovery
+        try:
+            from config import config_manager
+            for acct in config_manager.get_accounts():
+                if acct.user_id == user_id and not acct.agent_id:
+                    acct.agent_id = aid
+                    config_manager.update_account(acct)
+                    break
+        except Exception:
+            pass
+    return aid
 
 
 async def resolve_asset_urls(
@@ -103,10 +134,12 @@ def messages_to_content(messages: list, has_tools: bool = False) -> str:
     Returns:
         Formatted content string suitable for MiniMax API
     """
+    import json as _json
     system_text = ""
     parts = []
 
     for m in messages:
+        role = m.get("role")
         content = ""
         if isinstance(m.get("content"), str):
             content = m["content"]
@@ -114,12 +147,49 @@ def messages_to_content(messages: list, has_tools: bool = False) -> str:
             content = "\n".join(
                 p.get("text", "") for p in m["content"] if p.get("type") == "text"
             )
+
+        if role == "system":
+            if content:
+                system_text = content
+            continue
+
+        # Assistant messages may carry tool_calls (with content=None). Render them
+        # so the model can see its own prior function calls in multi-turn flows.
+        if role == "assistant" and m.get("tool_calls"):
+            call_strs = []
+            for tc in m["tool_calls"]:
+                fn = tc.get("function", {})
+                args = fn.get("arguments", "{}")
+                call_strs.append(f'{{"name": "{fn.get("name","")}", "arguments": {args}}}')
+            block = "[" + ", ".join(call_strs) + "]"
+            joined = (content + "\n" if content else "") + block
+            parts.append(f"assistant: {joined}")
+            continue
+
+        # Tool result messages — feed the execution result back to the model.
+        if role == "tool":
+            # Some agent frameworks (RooCode) attach the user's NEXT message inside
+            # a tool result after a completion tool. Detect that and treat it as a
+            # real user turn so the model doesn't mistake it for tool output.
+            if "<user_message>" in content:
+                import re as _re
+                um = _re.search(r"<user_message>\s*(.*?)\s*</user_message>", content, _re.DOTALL)
+                user_text = um.group(1) if um else content
+                if user_text.strip():
+                    parts.append(f"user: {user_text.strip()}")
+                continue
+            tool_name = m.get("name", "")
+            label = f"tool result ({tool_name})" if tool_name else "tool result"
+            parts.append(f"{label}: {content}")
+            continue
+
         if not content:
             continue
-        if m.get("role") == "system":
-            system_text = content
-        else:
-            parts.append(f"{m['role']}: {content}")
+        # Strip framework wrapper tags around plain user messages.
+        if role == "user" and "<user_message>" in content:
+            import re as _re
+            content = _re.sub(r"</?user_message>", "", content).strip()
+        parts.append(f"{role}: {content}")
 
     # Disable only MiniMax built-in media tools — user-defined function tools still work
     # Disable MiniMax built-in media tools only when no user tools are defined
@@ -290,7 +360,7 @@ async def web_agent_chat(
         logger.info("Pool empty, creating new session...")
         pool_device_id = device_id
         pool_uuid = uuid_val
-        pool_agent_id = agent_id
+        pool_agent_id = agent_id or await _resolve_agent_id(jwt_token, user_id, pool_device_id, pool_uuid)
         session_id = await create_session(jwt_token, user_id, model, agent_id=pool_agent_id or "404574372720710", cookie=cookie, device_id=pool_device_id, uuid_val=pool_uuid)
 
     usage_data = {}
@@ -326,6 +396,11 @@ async def web_agent_chat(
                 final_content += chunk["msg_content"]
             if chunk.get("thinking_content"):
                 final_thinking += chunk["thinking_content"]
+            # As soon as this turn yields a valid tool call, stop — later turns
+            # may be the model second-guessing itself and apologizing.
+            if chunk.get("finish"):
+                if tools and has_tool_calls(final_content):
+                    break
 
     # Resolve asset URLs (commit-id → download URL)
     if "commit-id-" in final_content:
@@ -347,6 +422,18 @@ async def web_agent_chat(
             choice["message"]["content"] = strip_tool_calls(final_content) or None
             choice["message"]["tool_calls"] = tool_calls
             choice["finish_reason"] = "tool_calls"
+    elif tools and final_content.strip():
+        # Client sent tools but the model replied in prose. Agent frameworks
+        # (RooCode/Cline/...) reject responses with no tool call. Wrap the prose
+        # into a completion-style tool so the client's contract is satisfied.
+        from tool_call import find_fallback_completion_tool, wrap_text_as_tool_call
+        fb = find_fallback_completion_tool(tools)
+        if fb:
+            name, text_arg = fb
+            choice["message"]["content"] = None
+            choice["message"]["tool_calls"] = [wrap_text_as_tool_call(name, text_arg, final_content.strip())]
+            choice["finish_reason"] = "tool_calls"
+            logger.info("Wrapped prose reply into fallback tool '%s'", name)
 
     # If no usage data from MiniMax, estimate based on content length
     if not usage_data or usage_data.get("total_tokens", 0) == 0:
@@ -397,7 +484,7 @@ async def web_agent_chat_stream(
     Raises:
         RuntimeError: If chat request fails
     """
-    from tool_call import inject_tools_into_messages, parse_tool_calls, strip_tool_calls, has_tool_calls
+    from tool_call import inject_tools_into_messages, parse_tool_calls, strip_tool_calls, has_tool_calls, maybe_tool_call_prefix
     from .utils import generate_uuid
     from .pool import get_pooled_session
     from .session import create_session, stream_message
@@ -470,6 +557,7 @@ async def web_agent_chat_stream(
 
     try:
         if session_id is None:
+            pool_agent_id = pool_agent_id or await _resolve_agent_id(jwt_token, user_id, pool_device_id, pool_uuid)
             session_id = await create_session(jwt_token, user_id, model, agent_id=pool_agent_id or "404574372720710", cookie=cookie, device_id=pool_device_id, uuid_val=pool_uuid)
         sent_role = False
         full_content = ""
@@ -511,33 +599,80 @@ async def web_agent_chat_stream(
                     yield sse_chunk(session_id, model, {"reasoning_content": chunk["thinking_content"]})
                 if chunk.get("msg_content"):
                     full_content += chunk["msg_content"]
-                    if not tools or not has_tool_calls(full_content):
+                    # When tools are enabled we cannot stream content incrementally:
+                    # the whole reply might be a JSON tool call, or (for agent
+                    # frameworks) prose that must be wrapped into a tool call at the
+                    # end. So buffer all content while tools are active and decide
+                    # at finish. Without tools, stream normally.
+                    if not tools:
                         yield sse_chunk(session_id, model, {"content": chunk["msg_content"]})
                 if chunk.get("finish"):
-                    # Resolve asset URLs if present
-                    if "commit-id-" in full_content and jwt_token:
-                        full_content = await resolve_asset_urls(full_content, jwt_token, user_id, pool_device_id)
-                    full_content = clean_deliver_assets(full_content)
-                    # Tool call parsing
-                    if tools and has_tool_calls(full_content):
-                        tool_calls = parse_tool_calls(full_content)
-                        if tool_calls:
-                            cleaned = strip_tool_calls(full_content)
-                            if cleaned:
-                                yield sse_chunk(session_id, model, {"content": cleaned})
-                            for i, tc in enumerate(tool_calls):
-                                yield sse_chunk(session_id, model, {"tool_calls": [{"index": i, "id": tc["id"], "type": "function", "function": {"name": tc["function"]["name"], "arguments": ""}}]})
-                                yield sse_chunk(session_id, model, {"tool_calls": [{"index": i, "function": {"arguments": tc["function"]["arguments"]}}]})
-                            yield sse_chunk(session_id, model, {}, finish_reason="tool_calls")
-                        else:
-                            yield sse_chunk(session_id, model, {}, finish_reason=chunk.get("finish_reason", "stop"))
-                    else:
-                        yield sse_chunk(session_id, model, {}, finish_reason=chunk.get("finish_reason", "stop"))
+                    # When tools are active, MiniMax may emit several message turns
+                    # (e.g. it emits a valid JSON call, then a second turn where it
+                    # second-guesses itself and apologizes). As soon as a turn's
+                    # buffered content contains a valid tool call, commit it and stop
+                    # — do NOT wait for later apology turns that would clobber it.
+                    if tools:
+                        if has_tool_calls(full_content):
+                            tool_calls = parse_tool_calls(full_content)
+                            if tool_calls:
+                                if not sent_role:
+                                    yield sse_chunk(session_id, model, {"role": "assistant"})
+                                    sent_role = True
+                                cleaned = strip_tool_calls(full_content)
+                                if cleaned:
+                                    yield sse_chunk(session_id, model, {"content": cleaned})
+                                for i, tc in enumerate(tool_calls):
+                                    yield sse_chunk(session_id, model, {"tool_calls": [{"index": i, "id": tc["id"], "type": "function", "function": {"name": tc["function"]["name"], "arguments": ""}}]})
+                                    yield sse_chunk(session_id, model, {"tool_calls": [{"index": i, "function": {"arguments": tc["function"]["arguments"]}}]})
+                                yield sse_chunk(session_id, model, {}, finish_reason="tool_calls")
+                                yield "data: [DONE]\n\n"
+                                return
+                        # No tool call in this turn yet — keep going, decide post-loop.
+                        continue
+                    # No tools: normal streaming finish.
+                    yield sse_chunk(session_id, model, {}, finish_reason=chunk.get("finish_reason", "stop"))
 
             elif etype == 2:
                 msg = event.get("agent_message", {})
-                if msg.get("role") == "assistant" and not sent_role:
+                if msg.get("role") == "assistant" and not sent_role and not tools:
                     yield sse_chunk(session_id, model, {"role": "assistant", "content": msg.get("msg_content", "")})
+                    yield sse_chunk(session_id, model, {}, finish_reason="stop")
+
+        # ── Post-loop finalization for tool-enabled requests ──────────────
+        # All content was buffered; decide once now that the stream has ended.
+        if tools:
+            if "commit-id-" in full_content and jwt_token:
+                full_content = await resolve_asset_urls(full_content, jwt_token, user_id, pool_device_id)
+            full_content = clean_deliver_assets(full_content)
+
+            tool_calls = parse_tool_calls(full_content) if has_tool_calls(full_content) else []
+            if not sent_role:
+                yield sse_chunk(session_id, model, {"role": "assistant"})
+                sent_role = True
+
+            if tool_calls:
+                cleaned = strip_tool_calls(full_content)
+                if cleaned:
+                    yield sse_chunk(session_id, model, {"content": cleaned})
+                for i, tc in enumerate(tool_calls):
+                    yield sse_chunk(session_id, model, {"tool_calls": [{"index": i, "id": tc["id"], "type": "function", "function": {"name": tc["function"]["name"], "arguments": ""}}]})
+                    yield sse_chunk(session_id, model, {"tool_calls": [{"index": i, "function": {"arguments": tc["function"]["arguments"]}}]})
+                yield sse_chunk(session_id, model, {}, finish_reason="tool_calls")
+            else:
+                # No tool call — wrap prose into a completion-style tool if one exists.
+                from tool_call import find_fallback_completion_tool
+                fb = find_fallback_completion_tool(tools) if full_content.strip() else None
+                if fb:
+                    name, text_arg = fb
+                    args = json.dumps({text_arg: full_content.strip()}, ensure_ascii=False)
+                    yield sse_chunk(session_id, model, {"tool_calls": [{"index": 0, "id": f"call_{uuid.uuid4().hex[:24]}", "type": "function", "function": {"name": name, "arguments": ""}}]})
+                    yield sse_chunk(session_id, model, {"tool_calls": [{"index": 0, "function": {"arguments": args}}]})
+                    yield sse_chunk(session_id, model, {}, finish_reason="tool_calls")
+                    logger.info("Stream: wrapped prose into fallback tool '%s'", name)
+                else:
+                    if full_content:
+                        yield sse_chunk(session_id, model, {"content": full_content})
                     yield sse_chunk(session_id, model, {}, finish_reason="stop")
 
     except Exception as e:
