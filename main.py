@@ -99,15 +99,61 @@ async def lifespan(_app: FastAPI):
     # Start pool replenishment background task
     import asyncio
     replenish_task = asyncio.create_task(_pool_replenishment_loop())
+    claim_task = asyncio.create_task(_daily_claim_loop())
 
     yield
 
     replenish_task.cancel()
+    claim_task.cancel()
     try:
         import asyncio as _asyncio
-        await _asyncio.gather(replenish_task, return_exceptions=True)
+        await _asyncio.gather(replenish_task, claim_task, return_exceptions=True)
     except Exception:
         pass
+
+
+async def _daily_claim_loop():
+    """Background task: claim free daily credits for all accounts once per day.
+
+    Runs shortly after startup and then every 12h. For each active account with
+    a cached token, calls the signin/claim endpoint. Accounts that were benched
+    with temporarily_no_credits get re-activated when a claim grants credits.
+    """
+    import asyncio
+    from minimax_adapter.claim import claim_daily
+
+    await asyncio.sleep(10)  # let startup settle
+    while True:
+        try:
+            accounts = config_manager.get_accounts()
+            claimed = 0
+            for acct in accounts:
+                if acct.depleted:
+                    continue
+                token = getattr(acct, "saved_token", "") or ""
+                if not token:
+                    continue
+                try:
+                    result = await claim_daily(token, user_id=getattr(acct, "user_id", "") or "")
+                except Exception as e:
+                    logger.debug("Daily claim error for %s: %s", acct.name, e)
+                    continue
+                if result.get("success") and result.get("points", 0) > 0:
+                    claimed += 1
+                    # Re-enable an account that was benched for lack of credits
+                    if acct.temporarily_no_credits:
+                        acct.temporarily_no_credits = False
+                        acct.credits_check_after = 0.0
+                        config_manager.update_account(acct)
+                        logger.info("Daily claim: re-activated '%s' (+%d credits)", acct.name, result["points"])
+                await asyncio.sleep(1)  # be gentle with upstream
+            if claimed:
+                logger.info("Daily claim loop: claimed credits for %d account(s)", claimed)
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.warning("Daily claim loop error: %s", e)
+        await asyncio.sleep(12 * 60 * 60)  # every 12h
 
 
 async def _pool_replenishment_loop():

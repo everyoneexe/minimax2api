@@ -62,6 +62,59 @@ def _classify_stream_event(event: dict):
         raise RuntimeError(f"TRANSIENT_ERROR: {err_msg}")
 
 
+async def discover_agent_id(
+    jwt_token: str,
+    user_id: str,
+    device_id: str = "62532107",
+    uuid_val: str = "6cafb2f8-5868-4755-a50b-c54f9a7edc4a",
+    prefer_role: str = "chat",
+) -> str:
+    """Discover an account's own agent_id via GET /archon/api/v1/agent.
+
+    Each account has per-account built-in agents (chat/general/coder/...).
+    Their ids are required for session creation (using another account's
+    agent_id yields "session ownership denied"). This avoids Puppeteer.
+
+    Returns the agent_id string for the preferred role, or "" on failure.
+    """
+    from curl_cffi.requests import AsyncSession
+    from .utils import unix_timestamp
+    from .signing import build_url, build_signed_headers
+
+    if not jwt_token or not user_id:
+        return ""
+
+    ts_s = unix_timestamp()
+    ts_ms = ts_s * 1000
+    path = "/archon/api/v1/agent"
+    url = f"{AGENT_BASE_URL}{build_url(path, jwt_token, user_id, device_id, ts_ms, uuid_val)}"
+    headers = build_signed_headers(jwt_token, url, "", ts_s)
+
+    try:
+        async with AsyncSession(impersonate="firefox") as s:
+            s.cookies.set("_token", jwt_token, domain=".minimax.io", path="/")
+            resp = await s.get(url, headers=headers, timeout=15)
+        if resp.status_code != 200:
+            logger.warning("agent discovery HTTP %d", resp.status_code)
+            return ""
+        data = resp.json()
+        agents = data.get("agents", [])
+        if not agents:
+            return ""
+        # Prefer the requested role, else fall back to the first agent
+        for a in agents:
+            if a.get("agent_role") == prefer_role and a.get("name"):
+                logger.info("Discovered agent_id %s (role=%s)", a["name"], prefer_role)
+                return str(a["name"])
+        first = agents[0].get("name", "")
+        if first:
+            logger.info("Discovered agent_id %s (fallback, role=%s)", first, agents[0].get("agent_role"))
+        return str(first)
+    except Exception as e:
+        logger.warning("agent discovery failed: %s", e)
+        return ""
+
+
 async def create_session(
     jwt_token: str,
     user_id: str,

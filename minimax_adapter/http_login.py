@@ -54,10 +54,10 @@ def get_or_refresh_token(acct) -> tuple:
     from config import config_manager
 
     now = time.time()
-    # 5 dakika buffer ile kontrol et
-    if acct.saved_token and acct.token_expires > now + 300 and acct.saved_cookies:
+    # 5 dakika buffer ile kontrol et (cookies opsiyonel — pure-HTTP yolu _token cookie'sini kendi set eder)
+    if acct.saved_token and acct.token_expires > now + 300:
         logger.info("Using cached token for %s (expires in %.0fs)", acct.email, acct.token_expires - now)
-        cookie_str = "; ".join(f"{k}={v}" for k, v in acct.saved_cookies.items())
+        cookie_str = "; ".join(f"{k}={v}" for k, v in acct.saved_cookies.items()) if acct.saved_cookies else ""
         return (
             acct.saved_token,
             acct.user_id or "",

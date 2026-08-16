@@ -66,6 +66,19 @@ async def _track_concurrent(email: str):
 
 def _get_creds(acct: Account) -> tuple:
     """Return (jwt_token, user_id, cookie, device_id, uuid_val, agent_id)."""
+    now = time.time()
+    # Use a still-valid cached token directly (no password needed).
+    if acct.saved_token and acct.token_expires > now + 300:
+        cookie_str = "; ".join(f"{k}={v}" for k, v in acct.saved_cookies.items()) if acct.saved_cookies else ""
+        return (
+            acct.saved_token,
+            acct.user_id or "",
+            cookie_str,
+            "62532107",
+            "6cafb2f8-5868-4755-a50b-c54f9a7edc4a",
+            acct.agent_id,
+        )
+    # Otherwise refresh via Puppeteer (needs email + password).
     if acct.email and acct.password:
         try:
             from minimax_adapter.http_login import get_or_refresh_token
@@ -116,6 +129,13 @@ def _pick_account() -> Optional[Account]:
     available.sort(key=lambda a: (_get_account_concurrent(a.email), a.last_used))
     chosen = available[0]
 
+    # Mark selection time immediately (even before the request runs) so a failing
+    # account isn't picked again on the very next request. Otherwise an account
+    # with last_used=0 that keeps failing (e.g. NO_CREDITS) would be chosen forever
+    # because _mark_used only runs on success.
+    chosen.last_used = time.time()
+    _persist_account(chosen)
+
     # If this account just came out of cooldown, persist the flag clear now
     if chosen.temporarily_no_credits is False and chosen.credits_check_after == 0.0:
         # Check if it was actually in cooldown before (by checking config again)
@@ -154,8 +174,36 @@ def _mark_quota_exceeded(acct: Account):
     logger.warning("Account '%s' (%s) marked as PERMANENTLY depleted - quota exceeded", acct.name, acct.email)
 
 
-def _mark_temporarily_no_credits(acct: Account):
-    """Mark account as temporarily out of credits (24h cooldown, then auto-retry)."""
+async def _try_daily_claim(acct: Account) -> bool:
+    """Attempt to claim today's free credits for an account.
+
+    Returns True if fresh credits were granted (points > 0).
+    """
+    try:
+        from minimax_adapter.claim import claim_daily
+        token = getattr(acct, "saved_token", "") or ""
+        if not token:
+            return False
+        result = await claim_daily(token, user_id=getattr(acct, "user_id", "") or "")
+        if result.get("success") and result.get("points", 0) > 0:
+            logger.info("Account '%s' claimed +%d daily credits", acct.name, result["points"])
+            return True
+        logger.info("Account '%s' daily claim: no new credits (already=%s, err=%s)",
+                    acct.name, result.get("already"), result.get("error"))
+    except Exception as e:
+        logger.warning("Account '%s' daily claim failed: %s", acct.name, e)
+    return False
+
+
+async def _mark_temporarily_no_credits(acct: Account):
+    """Bench an account for 24h when its credits are exhausted.
+
+    NOTE: We intentionally do NOT try a daily claim here. The claim endpoint
+    reports points>0 even on a same-day repeat claim that grants nothing, so it
+    is not a reliable signal that chat credit was actually restored. The daily
+    free credit is claimed once per day by the background loop; if the account
+    still hits NO_CREDITS, it is genuinely out of credit for the day.
+    """
     acct.temporarily_no_credits = True
     acct.credits_check_after = time.time() + (24 * 60 * 60)  # 24 hours from now
     _persist_account(acct)
@@ -219,8 +267,8 @@ async def proxy_chat(model: str, messages: list, params: dict, proxy_key: str) -
                 # Permanent quota exceeded
                 _mark_quota_exceeded(real_acct)
             elif "NO_CREDITS" in err:
-                # Temporary credit exhaustion (24h cooldown)
-                _mark_temporarily_no_credits(real_acct)
+                # Temporary credit exhaustion — try daily claim, else 24h cooldown
+                await _mark_temporarily_no_credits(real_acct)
             elif any(x in err for x in _TRANSIENT_ERRORS):
                 logger.warning("Account '%s' transient/infra error: %s", real_acct.name, err[:100])
             else:
@@ -268,7 +316,7 @@ async def proxy_chat_stream(
             if "QUOTA_EXCEEDED" in err:
                 _mark_quota_exceeded(real_acct)
             elif "NO_CREDITS" in err:
-                _mark_temporarily_no_credits(real_acct)
+                await _mark_temporarily_no_credits(real_acct)
             elif any(x in err for x in _TRANSIENT_ERRORS):
                 logger.warning("Account '%s' stream transient/infra error: %s", real_acct.name, err[:100])
             else:
