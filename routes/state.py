@@ -154,7 +154,7 @@ _lazy_server_proc: subprocess.Popen | None = None
 
 _DAEMON_SCRIPT = Path(__file__).parent.parent / "generator" / "session_daemon.js"
 _LAZY_SERVER_SCRIPT = Path(__file__).parent.parent / "generator" / "lazy_server.js"
-_ACCOUNTS_FILE = Path(__file__).parent.parent.parent / "generator" / "accounts.json"
+_ACCOUNTS_FILE = Path(__file__).parent.parent / "generator" / "accounts.json"
 _DAEMON_LOG = Path("/tmp/daemon.log")
 
 

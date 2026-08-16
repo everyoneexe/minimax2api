@@ -525,9 +525,9 @@ async def web_agent_chat_stream(
                             cleaned = strip_tool_calls(full_content)
                             if cleaned:
                                 yield sse_chunk(session_id, model, {"content": cleaned})
-                            for tc in tool_calls:
-                                yield sse_chunk(session_id, model, {"tool_calls": [{"index": 0, "id": tc["id"], "type": "function", "function": {"name": tc["function"]["name"], "arguments": ""}}]})
-                                yield sse_chunk(session_id, model, {"tool_calls": [{"index": 0, "function": {"arguments": tc["function"]["arguments"]}}]})
+                            for i, tc in enumerate(tool_calls):
+                                yield sse_chunk(session_id, model, {"tool_calls": [{"index": i, "id": tc["id"], "type": "function", "function": {"name": tc["function"]["name"], "arguments": ""}}]})
+                                yield sse_chunk(session_id, model, {"tool_calls": [{"index": i, "function": {"arguments": tc["function"]["arguments"]}}]})
                             yield sse_chunk(session_id, model, {}, finish_reason="tool_calls")
                         else:
                             yield sse_chunk(session_id, model, {}, finish_reason=chunk.get("finish_reason", "stop"))

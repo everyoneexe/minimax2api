@@ -7,7 +7,7 @@ Sessions are stored in pool_sessions.json and have a 25-minute TTL.
 import json
 import threading
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 import time
 
@@ -116,12 +116,13 @@ def return_session(jwt_token: str, user_id: str, session_id: str):
     """
     with _pool_lock:
         sessions = load_pool()
+        now = datetime.now(timezone.utc)
         sessions.append({
             "session_id": session_id,
             "token": jwt_token,
             "user_id": user_id,
-            "created_at": datetime.now().isoformat(),
-            "expires_at": (datetime.now() + timedelta(minutes=25)).isoformat()
+            "created_at": now.isoformat(),
+            "expires_at": (now + timedelta(minutes=25)).isoformat()
         })
         save_pool(sessions)
 
@@ -132,14 +133,16 @@ def pool_size() -> int:
     Returns:
         Count of valid sessions
     """
-    now = datetime.now()
+    now_ts = time.time()
     sessions = load_pool()
     count = 0
 
     for s in sessions:
         try:
             exp_dt = datetime.fromisoformat(s["expires_at"].replace("Z", "+00:00"))
-            if exp_dt.replace(tzinfo=None) > now:
+            # Naive timestamps are assumed to be local time (consistent with
+            # get_pooled_session); aware timestamps compare correctly via .timestamp()
+            if exp_dt.timestamp() > now_ts:
                 count += 1
         except Exception:
             # If parsing fails, assume valid

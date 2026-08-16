@@ -78,10 +78,13 @@ async def lifespan(_app: FastAPI):
         cfg_names = {a.name for a in cfg_accounts}
         added = 0
         for acc in daemon_accs:
-            name = acc.get("email", "").split("@")[0]
+            email = acc.get("email", "")
+            name = email.split("@")[0]
             if name and name not in cfg_names:
                 cfg_accounts.append(_Account(
                     name=name,
+                    email=email,
+                    password=acc.get("password", ""),
                     auth_mode="token",
                     base_url="https://agent.minimax.io",
                     is_active=True,

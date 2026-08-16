@@ -13,6 +13,54 @@ DEFAULT_AGENT_ID = "404574372720710"
 DEFAULT_MODEL = "MiniMax-M2.7"
 PROXY_URL = ""  # Set via env MINIMAX_PROXY or config
 
+# Keywords that indicate a quota/credit problem (permanent or temporary)
+_QUOTA_KEYWORDS = ("quota", "limit", "exceeded", "rate", "credit", "insufficient", "upgrade", "purchase")
+# Keywords that indicate a *temporary* credit exhaustion (24h cooldown, not permanent)
+_TEMP_CREDIT_KEYWORDS = ("token plan usage limit", "purchase credits", "no credits", "out of credits")
+
+
+def _classify_stream_event(event: dict):
+    """Inspect an upstream SSE event and raise on quota/credit/transient errors.
+
+    Raises RuntimeError with a prefix understood by proxy.py:
+      - QUOTA_EXCEEDED: permanent quota exhaustion
+      - NO_CREDITS: temporary credit exhaustion (24h cooldown)
+      - TRANSIENT_ERROR: infra/transient error, safe to retry
+    """
+    # base_resp / error envelope
+    err_msg = ""
+    if event.get("base_resp", {}).get("status_code") not in (0, None):
+        err_msg = event.get("base_resp", {}).get("status_msg", "")
+    if event.get("error"):
+        err_msg = str(event.get("error", ""))
+
+    # finish_reason=error carries the human-readable reason in the type:2 msg_content
+    if not err_msg:
+        if event.get("type") == 2:
+            msg = event.get("agent_message", {})
+            if msg.get("finish_reason") == "error":
+                err_msg = msg.get("msg_content", "") or "finish_reason=error"
+        elif event.get("type") == 6:
+            chunk = event.get("agent_message_chunk", {})
+            # type:6 error chunk has no content — the real reason arrives in the
+            # following type:2 message, so defer here and let type:2 classify it.
+            if chunk.get("finish_reason") == "error" and chunk.get("finish"):
+                return  # do not raise; wait for type:2
+            if chunk.get("finish_reason") == "toolUse" and chunk.get("finish"):
+                chunk["finish_reason"] = "stop"
+            return
+
+    if not err_msg:
+        return
+
+    low = err_msg.lower()
+    if any(k in low for k in _TEMP_CREDIT_KEYWORDS):
+        raise RuntimeError(f"NO_CREDITS: {err_msg}")
+    if any(k in low for k in _QUOTA_KEYWORDS):
+        raise RuntimeError(f"QUOTA_EXCEEDED: {err_msg}")
+    if event.get("type") == 2 and event.get("agent_message", {}).get("finish_reason") == "error":
+        raise RuntimeError(f"TRANSIENT_ERROR: {err_msg}")
+
 
 async def create_session(
     jwt_token: str,
@@ -67,7 +115,7 @@ async def create_session(
     if cookie:
         # Cookie mode: use subprocess curl (for cookie pair matching)
         import subprocess
-        cmd = ["curl", "-s", url, "-X", "POST"]
+        cmd = ["curl", "-s", "--compressed", url, "-X", "POST"]
         for k, v in headers.items():
             cmd += ["-H", f"{k}: {v}"]
         cmd += ["-H", f"Cookie: {cookie}", "--data-raw", body_str]
@@ -174,7 +222,7 @@ async def stream_message(
     if cookie:
         # Cookie mode: use subprocess curl for streaming
         import subprocess
-        cmd = ["curl", "-sN", url, "-X", "POST"]
+        cmd = ["curl", "-sN", "--compressed", url, "-X", "POST"]
         for k, v in headers.items():
             cmd += ["-H", f"{k}: {v}"]
         cmd += ["-H", f"Cookie: {cookie}", "--data-raw", body_str]
@@ -195,25 +243,7 @@ async def stream_message(
                     if "choices" in event:
                         yield event
                         continue
-                    # Check for quota/limit errors
-                    err_msg = ""
-                    if event.get("base_resp", {}).get("status_code") not in (0, None):
-                        err_msg = event.get("base_resp", {}).get("status_msg", "")
-                    if event.get("error"):
-                        err_msg = str(event.get("error", ""))
-                    if err_msg and any(k in err_msg.lower() for k in ["quota", "limit", "exceeded", "rate", "credit", "insufficient"]):
-                        raise RuntimeError(f"QUOTA_EXCEEDED: {err_msg}")
-                    # finish_reason:error — transient error, skip
-                    if event.get("type") == 2:
-                        msg = event.get("agent_message", {})
-                        if msg.get("finish_reason") == "error" and not msg.get("msg_content"):
-                            raise RuntimeError("TRANSIENT_ERROR: finish_reason=error")
-                    if event.get("type") == 6:
-                        chunk = event.get("agent_message_chunk", {})
-                        if chunk.get("finish_reason") == "error" and chunk.get("finish"):
-                            raise RuntimeError("TRANSIENT_ERROR: finish_reason=error")
-                        if chunk.get("finish_reason") == "toolUse" and chunk.get("finish"):
-                            chunk["finish_reason"] = "stop"
+                    _classify_stream_event(event)
                     yield event
                 except json.JSONDecodeError:
                     continue
@@ -248,25 +278,7 @@ async def stream_message(
                     if "choices" in event:
                         yield event
                         continue
-                    # Check for quota/limit errors
-                    err_msg = ""
-                    if event.get("base_resp", {}).get("status_code") not in (0, None):
-                        err_msg = event.get("base_resp", {}).get("status_msg", "")
-                    if event.get("error"):
-                        err_msg = str(event.get("error", ""))
-                    if err_msg and any(k in err_msg.lower() for k in ["quota", "limit", "exceeded", "rate", "credit", "insufficient"]):
-                        raise RuntimeError(f"QUOTA_EXCEEDED: {err_msg}")
-                    # finish_reason:error — transient error, skip
-                    if event.get("type") == 2:
-                        msg = event.get("agent_message", {})
-                        if msg.get("finish_reason") == "error" and not msg.get("msg_content"):
-                            raise RuntimeError("TRANSIENT_ERROR: finish_reason=error")
-                    if event.get("type") == 6:
-                        chunk = event.get("agent_message_chunk", {})
-                        if chunk.get("finish_reason") == "error" and chunk.get("finish"):
-                            raise RuntimeError("TRANSIENT_ERROR: finish_reason=error")
-                        if chunk.get("finish_reason") == "toolUse" and chunk.get("finish"):
-                            chunk["finish_reason"] = "stop"
+                    _classify_stream_event(event)
                     yield event
                 except json.JSONDecodeError:
                     continue
